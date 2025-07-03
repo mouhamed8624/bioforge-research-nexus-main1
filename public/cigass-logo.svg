@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="60" viewBox="0 0 200 60" fill="none">
+  <!-- Background circle for medical/lab theme -->
+  <circle cx="30" cy="30" r="25" fill="#8B5CF6" opacity="0.1"/>
+  <circle cx="30" cy="30" r="20" fill="#8B5CF6" opacity="0.2"/>
+  
+  <!-- DNA/Helix symbol -->
+  <path d="M20 15 C25 20, 35 25, 40 30 C35 35, 25 40, 20 45" stroke="#8B5CF6" stroke-width="2.5" fill="none"/>
+  <path d="M40 15 C35 20, 25 25, 20 30 C25 35, 35 40, 40 45" stroke="#6366F1" stroke-width="2.5" fill="none"/>
+  
+  <!-- Small dots representing molecules -->
+  <circle cx="22" cy="22" r="1.5" fill="#8B5CF6"/>
+  <circle cx="30" cy="18" r="1.5" fill="#6366F1"/>
+  <circle cx="38" cy="22" r="1.5" fill="#8B5CF6"/>
+  <circle cx="22" cy="38" r="1.5" fill="#6366F1"/>
+  <circle cx="30" cy="42" r="1.5" fill="#8B5CF6"/>
+  <circle cx="38" cy="38" r="1.5" fill="#6366F1"/>
+  
+  <!-- Company name -->
+  <text x="65" y="25" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="#1F2937">CIGASS</text>
+  <text x="65" y="42" font-family="Arial, sans-serif" font-size="10" fill="#6B7280">LABORATORY MANAGEMENT</text>
+  
+  <!-- Decorative line -->
+  <line x1="65" y1="30" x2="190" y2="30" stroke="url(#gradient)" stroke-width="1"/>
+  
+  <!-- Gradient definition -->
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#8B5CF6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#6366F1;stop-opacity:0" />
+    </linearGradient>
+  </defs>
+</svg> 

@@ -1,0 +1,5 @@
+
+ALTER TABLE public.patients
+ADD COLUMN IF NOT EXISTS father_name TEXT NULL,
+ADD COLUMN IF NOT EXISTS mother_name TEXT NULL,
+ADD COLUMN IF NOT EXISTS place_of_birth TEXT NULL;

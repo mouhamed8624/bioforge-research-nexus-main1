@@ -1,0 +1,160 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 220 13% 18%; /* Logo main text color */
+    --card: 0 0% 98%;
+    --card-foreground: 220 13% 18%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 13% 18%;
+    --primary: 213 94% 68%; /* Cigass primary blue from logo */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 220 13% 18%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 220 8.9% 46.1%; /* Logo subtitle color */
+    --accent: 217 91% 60%; /* Cigass secondary blue from logo */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 213 94% 68%; /* Cigass primary blue */
+    --sidebar-background: 240 4.8% 95.9%;
+    --sidebar-foreground: 220 13% 18%;
+    --sidebar-primary: 213 94% 68%; /* Cigass primary blue */
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 4.8% 92%;
+    --sidebar-accent-foreground: 220 13% 18%; 
+    --sidebar-border: 240 5.9% 90%;
+    --sidebar-ring: 213 94% 68%; /* Cigass primary blue */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-white text-foreground;
+    background-color: white !important;
+    background-image: none; /* Removed gradient patterns */
+    font-feature-settings: "ss01", "ss02", "cv01", "cv02";
+  }
+
+  html, #root {
+    @apply bg-white;
+    background-color: white !important;
+    height: 100%;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    @apply bg-cigass-200 rounded-full;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-cigass-300;
+  }
+
+  input, textarea, select, button {
+    @apply focus-visible:ring-offset-cigass-100 transition-all duration-200;
+  }
+
+  button {
+    @apply active:scale-95 transition-all;
+  }
+}
+
+@layer utilities {
+  .hexagon-divider {
+    clip-path: polygon(0% 0%, 90% 0%, 100% 50%, 90% 100%, 0% 100%);
+  }
+  
+  .glow {
+    filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.8));
+  }
+  
+  .text-glow {
+    text-shadow: 0 0 8px rgba(59, 130, 246, 0.8);
+  }
+  
+  .blue-glow {
+    filter: drop-shadow(0 0 8px rgba(37, 99, 235, 0.8));
+  }
+  
+  .text-blue-glow {
+    text-shadow: 0 0 8px rgba(37, 99, 235, 0.8);
+  }
+  
+  .cigass-glow {
+    filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.8));
+  }
+  
+  .text-cigass-glow {
+    text-shadow: 0 0 8px rgba(59, 130, 246, 0.8);
+  }
+  
+  .glass-effect {
+    backdrop-filter: blur(12px);
+    background-color: rgba(59, 130, 246, 0.05);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+  }
+
+  /* Updated utility classes with Cigass blue colors */
+  .neo-card {
+    @apply bg-white rounded-xl border border-cigass-100 shadow-[0_8px_30px_rgb(59,130,246,0.04)] hover:shadow-[0_8px_30px_rgb(59,130,246,0.07)] transition-all duration-300;
+  }
+
+  .text-gradient-cigass {
+    @apply bg-gradient-to-r from-cigass-600 to-blue-600 bg-clip-text text-transparent;
+  }
+  
+  .text-gradient-blue {
+    @apply bg-gradient-to-r from-cigass-600 to-blue-600 bg-clip-text text-transparent;
+  }
+
+  .text-gradient-purple {
+    @apply bg-gradient-to-r from-cigass-600 to-blue-600 bg-clip-text text-transparent;
+  }
+  
+  .bg-gradient-subtle {
+    @apply bg-gradient-to-br from-white to-cigass-50;
+  }
+  
+  .shimmer {
+    background: linear-gradient(90deg, 
+      rgba(255,255,255,0) 0%, 
+      rgba(255,255,255,0.4) 50%, 
+      rgba(255,255,255,0) 100%);
+    background-size: 200% 100%;
+    animation: shimmerEffect 2s infinite;
+  }
+  
+  @keyframes shimmerEffect {
+    0% {background-position: 100% 50%;}
+    100% {background-position: 0% 50%;}
+  }
+
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+  
+  @keyframes float {
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+    100% { transform: translateY(0px); }
+  }
+}

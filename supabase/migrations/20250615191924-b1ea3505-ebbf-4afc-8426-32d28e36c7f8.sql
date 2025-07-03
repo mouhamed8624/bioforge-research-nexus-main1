@@ -1,0 +1,4 @@
+
+ALTER TABLE public.patients
+ADD COLUMN IF NOT EXISTS glycemia NUMERIC,
+ADD COLUMN IF NOT EXISTS hemoglobin NUMERIC;
