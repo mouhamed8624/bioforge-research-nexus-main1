@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { Button } from "@/components/ui/button";
@@ -54,7 +54,7 @@ const Teams = () => {
   const userRole = userProfile?.role;
 
   // Enhanced fetch function - prioritize team_members data and supplement with profiles
-  const fetchTeamMembers = async () => {
+  const fetchTeamMembers = useCallback(async () => {
     setLoading(true);
     try {
       console.log('Fetching team members...');
@@ -140,7 +140,7 @@ const Teams = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // 2. Add or Update member - now updates both profiles and team_members
   const handleSaveMember = async () => {
@@ -362,7 +362,53 @@ const Teams = () => {
     if (userRole !== 'financial') {
       startAttendanceService();
     }
-  }, [userRole]);
+
+    // Set up real-time subscriptions for team_members and profiles tables
+    const teamMembersSubscription = supabase
+      .channel('team_members_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'team_members'
+        },
+        () => {
+          console.log('Team members table changed, refreshing data...');
+          fetchTeamMembers();
+        }
+      )
+      .subscribe();
+
+    const profilesSubscription = supabase
+      .channel('profiles_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'profiles'
+        },
+        () => {
+          console.log('Profiles table changed, refreshing data...');
+          fetchTeamMembers();
+        }
+      )
+      .subscribe();
+
+    // Set up periodic refresh as fallback (every 30 seconds)
+    const intervalId = setInterval(() => {
+      console.log('Periodic refresh of team members...');
+      fetchTeamMembers();
+    }, 30000);
+
+    // Cleanup subscriptions and interval on unmount
+    return () => {
+      teamMembersSubscription.unsubscribe();
+      profilesSubscription.unsubscribe();
+      clearInterval(intervalId);
+    };
+  }, [userRole, fetchTeamMembers]);
 
   // Filtering logic - simplified since we don't have team field
   const filteredMembers = teamMembers.filter(member => {
@@ -422,6 +468,23 @@ const Teams = () => {
                   ))}
                 </SelectContent>
               </Select>
+              <Button
+                variant="outline"
+                onClick={fetchTeamMembers}
+                className="flex items-center gap-2"
+                disabled={loading}
+              >
+                <div className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`}>
+                  {loading ? (
+                    <div className="rounded-full h-4 w-4 border-b-2 border-purple-600" />
+                  ) : (
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  )}
+                </div>
+                Refresh
+              </Button>
               {userRole !== 'financial' && (
                 <Button
                   variant="outline"
