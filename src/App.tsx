@@ -48,7 +48,7 @@ const PageSkeleton = () => (
 const ProtectedPageRoute = ({ children, allowedRoles }: { children: React.ReactNode; allowedRoles: string[] }) => (
   <ProtectedRoute>
     <RoleProtectedRoute allowedRoles={allowedRoles}>
-      <Suspense fallback={<PageSkeleton />}>
+      <Suspense fallback={null}>
         {children}
       </Suspense>
     </RoleProtectedRoute>
@@ -153,16 +153,9 @@ const queryClient = new QueryClient({
 function AppContent() {
   const { showRoleSelection, currentUser, onRoleSelected, loading } = useAuth();
 
-  // Show loading spinner while auth is initializing
+  // Show nothing while auth is initializing
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <LoadingSpinner size="lg" className="mx-auto mb-4" />
-          <p className="text-muted-foreground">Initializing application...</p>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (
