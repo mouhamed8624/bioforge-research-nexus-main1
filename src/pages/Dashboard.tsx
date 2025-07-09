@@ -148,23 +148,22 @@ const Dashboard = () => {
         }
 
         // Fetch Plaquettes count
-        // setIsStatsLoading(prev => ({ ...prev, plaquettes: true }));
-        // try {
-        //   const { count: plaquettesCountResult, error: plaquettesError } = await supabase
-        //     .from('plaquettes')
-        //     .select('*', { count: 'exact', head: true });
-        //   if (plaquettesError) {
-        //     console.error("Error fetching Plaquettes count:", plaquettesError);
-        //     setPlaquettesCount(0);
-        //   } else {
-        //     setPlaquettesCount(plaquettesCountResult || 0);
-        //   }
-        // } catch (err) {
-        //   setPlaquettesCount(0);
-        // } finally {
-        //   setIsStatsLoading(prev => ({ ...prev, plaquettes: false }));
-        // }
-        // TODO: Uncomment and fix when 'plaquettes' table is available in Supabase types
+        setIsStatsLoading(prev => ({ ...prev, plaquettes: true }));
+        try {
+          const { count: plaquettesCountResult, error: plaquettesError } = await supabase
+            .from('plaquettes' as any)
+            .select('*', { count: 'exact', head: true });
+          if (plaquettesError) {
+            console.error("Error fetching Plaquettes count:", plaquettesError);
+            setPlaquettesCount(0);
+          } else {
+            setPlaquettesCount(plaquettesCountResult || 0);
+          }
+        } catch (err) {
+          setPlaquettesCount(0);
+        } finally {
+          setIsStatsLoading(prev => ({ ...prev, plaquettes: false }));
+        }
       }
     };
 
@@ -388,7 +387,13 @@ const Dashboard = () => {
               "Biological samples stored",
               isStatsLoading.bioBanks
             )}
-            {/* Plaquettes stat card placeholder: Uncomment and fix when 'plaquettes' table is available in Supabase types */}
+            {isAdminOrPresident && renderStatCard(
+              "Plaquettes", 
+              plaquettesCount, 
+              <CreditCard className="h-6 w-6 text-purple-600" />, 
+              "Plaquettes stored",
+              isStatsLoading.plaquettes
+            )}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
