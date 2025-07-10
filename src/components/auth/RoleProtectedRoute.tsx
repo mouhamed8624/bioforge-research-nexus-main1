@@ -42,14 +42,11 @@ const ROLE_NAV_CONFIG: Record<string, string[]> = {
     "plaquettes",
     "reservations",
     "patients",
-    "todo-list",
-    "button-project"
+    "todo-list"
   ],
   field: [
     "patients",
-    "dashboard",
-    "todo-list",
-    "button-project"
+    "dashboard"
   ],
   front_desk: [
     "teams",

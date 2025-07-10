@@ -260,55 +260,98 @@ export const getAttendanceStats = calculateAttendanceStats;
 
 // Get attendance statistics for all team members
 export const getTeamAttendanceStats = async (memberIds: string[], startDate?: string, endDate?: string): Promise<AttendanceStats> => {
-  // Filter out invalid member IDs
-  const validMemberIds = memberIds.filter(id => id && id.length > 0 && id !== '1');
-  
-  if (validMemberIds.length === 0) {
+  try {
+    // Filter out invalid member IDs
+    const validMemberIds = memberIds.filter(id => id && id.length > 0 && id !== '1');
+    
+    if (validMemberIds.length === 0) {
+      console.log('No valid member IDs provided, returning empty stats');
+      return {
+        totalDays: 0,
+        presentDays: 0,
+        absentDays: 0,
+        lateDays: 0,
+        excusedDays: 0,
+        attendanceRate: 0
+      };
+    }
+
+    console.log('Fetching team attendance stats for members:', validMemberIds);
+
+    let query = supabase
+      .from('team_attendance')
+      .select('status')
+      .in('team_member_id', validMemberIds);
+
+    if (startDate) {
+      query = query.gte('date', startDate);
+    }
+    if (endDate) {
+      query = query.lte('date', endDate);
+    }
+
+    // Add timeout for the query
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Attendance query timeout - check your internet connection')), 8000)
+    );
+
+    const queryPromise = query;
+    const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
+
+    if (error) {
+      console.error('Error calculating team attendance stats:', error);
+      
+      // Provide more specific error information
+      if (error.message?.includes('fetch') || error.message?.includes('Load failed')) {
+        throw new Error('Network error - check your internet connection');
+      } else if (error.code === 'PGRST116') {
+        // Table doesn't exist or no data
+        console.log('No attendance data found, returning empty stats');
+        return {
+          totalDays: 0,
+          presentDays: 0,
+          absentDays: 0,
+          lateDays: 0,
+          excusedDays: 0,
+          attendanceRate: 0
+        };
+      } else {
+        throw new Error(`Database error: ${error.message}`);
+      }
+    }
+
+    const records = data || [];
+    console.log(`Found ${records.length} attendance records for team stats`);
+    
+    const totalDays = records.length;
+    const presentDays = records.filter(r => r.status === 'present').length;
+    const absentDays = records.filter(r => r.status === 'absent').length;
+    const lateDays = records.filter(r => r.status === 'late').length;
+    const excusedDays = records.filter(r => r.status === 'excused').length;
+    const attendanceRate = totalDays > 0 ? (presentDays / totalDays) * 100 : 0;
+
     return {
-      totalDays: 0,
-      presentDays: 0,
-      absentDays: 0,
-      lateDays: 0,
-      excusedDays: 0,
-      attendanceRate: 0
+      totalDays,
+      presentDays,
+      absentDays,
+      lateDays,
+      excusedDays,
+      attendanceRate
     };
-  }
-
-  let query = supabase
-    .from('team_attendance')
-    .select('status')
-    .in('team_member_id', validMemberIds);
-
-  if (startDate) {
-    query = query.gte('date', startDate);
-  }
-  if (endDate) {
-    query = query.lte('date', endDate);
-  }
-
-  const { data, error } = await query;
-
-  if (error) {
+  } catch (error: any) {
     console.error('Error calculating team attendance stats:', error);
-    throw error;
+    
+    // Handle different types of errors more gracefully
+    if (error?.message?.includes('timeout')) {
+      throw new Error('Request timed out - check your internet connection');
+    } else if (error?.message?.includes('Network error')) {
+      throw error; // Re-throw network errors as-is
+    } else if (error?.message?.includes('Database error')) {
+      throw error; // Re-throw database errors as-is
+    } else {
+      throw new Error('Error fetching attendance data');
+    }
   }
-
-  const records = data || [];
-  const totalDays = records.length;
-  const presentDays = records.filter(r => r.status === 'present').length;
-  const absentDays = records.filter(r => r.status === 'absent').length;
-  const lateDays = records.filter(r => r.status === 'late').length;
-  const excusedDays = records.filter(r => r.status === 'excused').length;
-  const attendanceRate = totalDays > 0 ? (presentDays / totalDays) * 100 : 0;
-
-  return {
-    totalDays,
-    presentDays,
-    absentDays,
-    lateDays,
-    excusedDays,
-    attendanceRate
-  };
 };
 
 // Manually trigger the daily attendance marking function

@@ -14,7 +14,10 @@ import {
   PauseCircle,
   CheckCircle2,
   DollarSign,
-  User
+  User,
+  BookOpen,
+  BarChart3,
+  Clock
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { CreateProjectDialog } from "./CreateProjectDialog";
@@ -361,10 +364,17 @@ export function ProjectsDisplay() {
     try {
       console.log('Updating project status in database:', projectId, 'to:', newStatus);
       
-      const { error } = await supabase
+      // Add timeout and better error handling
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Request timeout - check your internet connection')), 10000)
+      );
+      
+      const updatePromise = supabase
         .from('projects')
         .update({ status: newStatus })
         .eq('id', projectId);
+      
+      const { error } = await Promise.race([updatePromise, timeoutPromise]);
       
       if (error) {
         console.error('Error updating project status:', error);
@@ -379,9 +389,19 @@ export function ProjectsDisplay() {
         if (selectedProject?.id === projectId) {
           setSelectedProject(prev => prev ? { ...prev, status: project.status } : null);
         }
+        
+        let errorMessage = "Failed to update project status";
+        if (error.message.includes('fetch')) {
+          errorMessage = "Network error - check your internet connection";
+        } else if (error.message.includes('timeout')) {
+          errorMessage = "Request timed out - please try again";
+        } else if (error.code) {
+          errorMessage = `Database error: ${error.message}`;
+        }
+        
         toast({
           title: "Error",
-          description: `Failed to update project status: ${error.message}`,
+          description: errorMessage,
           variant: "destructive",
         });
         return;
@@ -394,7 +414,7 @@ export function ProjectsDisplay() {
         description: `${project.name} status changed to ${newStatus}`,
       });
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating project status:', error);
       // Revert optimistic update on error
       setProjects(prev => 
@@ -407,9 +427,19 @@ export function ProjectsDisplay() {
       if (selectedProject?.id === projectId) {
         setSelectedProject(prev => prev ? { ...prev, status: project.status } : null);
       }
+      
+      let errorMessage = "Failed to update project status";
+      if (error?.message?.includes('timeout')) {
+        errorMessage = "Request timed out - check your internet connection";
+      } else if (error?.message?.includes('Failed to fetch') || error?.message?.includes('Load failed')) {
+        errorMessage = "Network error - check your internet connection and try again";
+      } else if (error?.name === 'TypeError') {
+        errorMessage = "Connection error - please check your internet connection";
+      }
+      
       toast({
-        title: "Error",
-        description: "Failed to update project status",
+        title: "Error", 
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -505,104 +535,168 @@ export function ProjectsDisplay() {
                         e.stopPropagation();
                         handleDeleteProject(project.id);
                       }}
-                      className="h-8 w-8 text-red-500 hover:text-red-700"
-                      title="Delete project"
                       disabled={operationInProgress.has(project.id)}
+                      className="h-8 w-8 hover:bg-red-50 hover:text-red-600"
+                      title="Delete project"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
-                <CardTitle className="text-lg">{project.name}</CardTitle>
-                <CardDescription className="text-sm">
-                  {project.description}
+                <CardTitle className="text-lg line-clamp-2">{project.name}</CardTitle>
+                <CardDescription className="line-clamp-3 text-sm">
+                  {project.description || "No description available"}
                 </CardDescription>
               </CardHeader>
-              
               <CardContent className="space-y-4">
+                {/* Principal Investigators */}
+                {(project.principal_investigator || project.co_principal_investigator) && (
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-sm text-muted-foreground">Investigators</h4>
+                    <div className="space-y-1">
+                      {project.principal_investigator && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <User className="h-4 w-4 text-blue-600" />
+                          <span className="font-medium">PI:</span>
+                          <span>{project.principal_investigator}</span>
+                        </div>
+                      )}
+                      {project.co_principal_investigator && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <User className="h-4 w-4 text-green-600" />
+                          <span className="font-medium">Co-PI:</span>
+                          <span>{project.co_principal_investigator}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Team Information */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Team</span>
+                  </div>
+                  <span className="text-sm text-muted-foreground">
+                    {project.teamMembers} member{project.teamMembers !== 1 ? 's' : ''}
+                  </span>
+                </div>
+
+                {/* Team Members List */}
+                {project.team && project.team.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap gap-1">
+                      {project.team.slice(0, 3).map((member, index) => (
+                        <Badge key={index} variant="outline" className="text-xs">
+                          {member}
+                        </Badge>
+                      ))}
+                      {project.team.length > 3 && (
+                        <Badge variant="outline" className="text-xs">
+                          +{project.team.length - 3} more
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Budget Information */}
+                {project.budget && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <DollarSign className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">Budget</span>
+                      </div>
+                      <span className="text-sm text-muted-foreground">
+                        ${project.budget.used.toLocaleString()} / ${project.budget.total.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className={`h-2 rounded-full transition-all duration-300 ${
+                          project.budget.progress > 90 ? 'bg-red-500' : 
+                          project.budget.progress > 75 ? 'bg-yellow-500' : 'bg-green-500'
+                        }`}
+                        style={{ width: `${Math.min(project.budget.progress, 100)}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>{project.budget.progress.toFixed(1)}% used</span>
+                      <span>${(project.budget.total - project.budget.used).toLocaleString()} remaining</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Project Timeline */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Timeline</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    <div>Started: {new Date(project.startDate).toLocaleDateString()}</div>
+                    {project.endDate && (
+                      <div>End: {new Date(project.endDate).toLocaleDateString()}</div>
+                    )}
+                  </div>
+                </div>
+
                 {/* Progress Bar */}
                 <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Progress</span>
-                    <span>{project.progress}%</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Progress</span>
+                    <span className="text-sm text-muted-foreground">{project.progress}%</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-blue-600 h-2 rounded-full transition-all"
+                    <div 
+                      className="bg-blue-500 h-2 rounded-full transition-all duration-300"
                       style={{ width: `${project.progress}%` }}
                     />
                   </div>
                 </div>
 
-                {/* Project Info */}
-                <div className="space-y-2 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4" />
-                    <span>Start: {new Date(project.startDate).toLocaleDateString()}</span>
-                  </div>
-                  {project.endDate && (
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4" />
-                      <span>End: {new Date(project.endDate).toLocaleDateString()}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    <span>{project.teamMembers} team members</span>
-                  </div>
-                  {project.budget && userProfile?.role === 'president' && (
-                    <div className="flex items-center gap-2">
-                      <DollarSign className="h-4 w-4" />
-                      <span>Budget: ${project.budget.total.toLocaleString()}</span>
-                    </div>
-                  )}
-                </div>
-
                 {/* Action Buttons */}
                 <div className="flex gap-2 pt-2">
-                  {project.status === "active" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleStatusChange(project.id, 
+                        project.status === 'active' ? 'paused' : 
+                        project.status === 'paused' ? 'active' : 'active'
+                      );
+                    }}
+                    disabled={operationInProgress.has(project.id)}
+                    className="flex-1"
+                  >
+                    {project.status === 'active' ? (
+                      <>
+                        <PauseCircle className="h-4 w-4 mr-1" />
+                        Pause
+                      </>
+                    ) : (
+                      <>
+                        <PlayCircle className="h-4 w-4 mr-1" />
+                        {project.status === 'paused' ? 'Resume' : 'Start'}
+                      </>
+                    )}
+                  </Button>
+                  
+                  {project.status !== 'completed' && (
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleStatusChange(project.id, "paused")}
-                      className="flex-1"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleStatusChange(project.id, 'completed');
+                      }}
                       disabled={operationInProgress.has(project.id)}
-                    >
-                      <PauseCircle className="h-4 w-4 mr-1" />
-                      Pause
-                    </Button>
-                  )}
-                  {project.status === "paused" && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleStatusChange(project.id, "active")}
                       className="flex-1"
-                      disabled={operationInProgress.has(project.id)}
-                    >
-                      <PlayCircle className="h-4 w-4 mr-1" />
-                      Resume
-                    </Button>
-                  )}
-                  {project.status === "draft" && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleStatusChange(project.id, "active")}
-                      className="flex-1"
-                      disabled={operationInProgress.has(project.id)}
-                    >
-                      <PlayCircle className="h-4 w-4 mr-1" />
-                      Start
-                    </Button>
-                  )}
-                  {(project.status === "active" || project.status === "paused") && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleStatusChange(project.id, "completed")}
-                      className="flex-1"
-                      disabled={operationInProgress.has(project.id)}
                     >
                       <CheckCircle2 className="h-4 w-4 mr-1" />
                       Complete
@@ -615,93 +709,400 @@ export function ProjectsDisplay() {
         )}
       </div>
 
-      {/* Enhanced Selected Project Details */}
+      {/* Enhanced Project Details Modal */}
       {selectedProject && (
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>Project Details: {selectedProject.name}</CardTitle>
-            <CardDescription>
-              Comprehensive view of {selectedProject.name}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h4 className="font-semibold mb-2">Description</h4>
-                <p className="text-sm text-muted-foreground">{selectedProject.description || "No description provided"}</p>
-              </div>
-              
-              <div>
-                <h4 className="font-semibold mb-2">Timeline</h4>
-                <p className="text-sm text-muted-foreground">
-                  Started: {new Date(selectedProject.startDate).toLocaleDateString()}
-                  {selectedProject.endDate && (
-                    <span> - Expected End: {new Date(selectedProject.endDate).toLocaleDateString()}</span>
-                  )}
-                </p>
-              </div>
-              
-              <div>
-                <h4 className="font-semibold mb-2">Team</h4>
-                <p className="text-sm text-muted-foreground">
-                  {selectedProject.teamMembers} active team members
-                </p>
-                {selectedProject.team && selectedProject.team.length > 0 && (
-                  <div className="mt-2">
-                    <p className="text-xs text-muted-foreground">Team members:</p>
-                    <ul className="text-xs text-muted-foreground list-disc list-inside">
-                      {selectedProject.team.map((member, index) => (
-                        <li key={index}>{member}</li>
-                      ))}
-                    </ul>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-hidden shadow-2xl">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="bg-white/20 p-3 rounded-lg">
+                    <FolderOpen className="h-8 w-8" />
                   </div>
-                )}
-              </div>
-              
-              <div>
-                <h4 className="font-semibold mb-2">Progress & Budget</h4>
-                <p className="text-sm text-muted-foreground">
-                  {selectedProject.progress}% completed
-                </p>
-                {selectedProject.budget && userProfile?.role === 'president' && (
-                  <p className="text-sm text-muted-foreground">
-                    Budget: ${selectedProject.budget.total.toLocaleString()} 
-                    (Used: ${selectedProject.budget.used.toLocaleString()})
-                  </p>
-                )}
-              </div>
-              
-              {selectedProject.principal_investigator && (
-                <div>
-                  <h4 className="font-semibold mb-2 flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    Principal Investigator
-                  </h4>
-                  <p className="text-sm text-muted-foreground">{selectedProject.principal_investigator}</p>
+                  <div>
+                    <h1 className="text-2xl font-bold">{selectedProject.name}</h1>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge 
+                        variant="secondary" 
+                        className={`${getStatusColor(selectedProject.status)} flex items-center gap-1`}
+                      >
+                        {getStatusIcon(selectedProject.status)}
+                        {selectedProject.status.charAt(0).toUpperCase() + selectedProject.status.slice(1)}
+                      </Badge>
+                      <span className="text-white/80">•</span>
+                      <span className="text-white/80">{selectedProject.progress}% Complete</span>
+                    </div>
+                  </div>
                 </div>
-              )}
-              
-              {selectedProject.co_principal_investigator && (
-                <div>
-                  <h4 className="font-semibold mb-2 flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    Co-Principal Investigator
-                  </h4>
-                  <p className="text-sm text-muted-foreground">{selectedProject.co_principal_investigator}</p>
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  onClick={() => setSelectedProject(null)}
+                  className="text-white hover:bg-white/20"
+                >
+                  <Plus className="h-6 w-6 rotate-45" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Main Content */}
+                <div className="lg:col-span-2 space-y-8">
+                  {/* Project Overview */}
+                  <div className="space-y-4">
+                    <h2 className="text-xl font-semibold flex items-center gap-2">
+                      <BookOpen className="h-5 w-5 text-blue-600" />
+                      Project Overview
+                    </h2>
+                    <Card>
+                      <CardContent className="p-6">
+                        <div className="space-y-4">
+                          <div>
+                            <h3 className="font-medium text-sm text-muted-foreground mb-2">Description</h3>
+                            <p className="text-sm leading-relaxed">
+                              {selectedProject.description || "No description provided for this project."}
+                            </p>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <h3 className="font-medium text-sm text-muted-foreground mb-2">Start Date</h3>
+                              <p className="text-sm flex items-center gap-2">
+                                <Calendar className="h-4 w-4 text-blue-600" />
+                                {new Date(selectedProject.startDate).toLocaleDateString('en-US', {
+                                  weekday: 'long',
+                                  year: 'numeric',
+                                  month: 'long',
+                                  day: 'numeric'
+                                })}
+                              </p>
+                            </div>
+                            {selectedProject.endDate && (
+                              <div>
+                                <h3 className="font-medium text-sm text-muted-foreground mb-2">Expected End Date</h3>
+                                <p className="text-sm flex items-center gap-2">
+                                  <Calendar className="h-4 w-4 text-red-600" />
+                                  {new Date(selectedProject.endDate).toLocaleDateString('en-US', {
+                                    weekday: 'long',
+                                    year: 'numeric',
+                                    month: 'long',
+                                    day: 'numeric'
+                                  })}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Progress Tracking */}
+                  <div className="space-y-4">
+                    <h2 className="text-xl font-semibold flex items-center gap-2">
+                      <PlayCircle className="h-5 w-5 text-green-600" />
+                      Progress Tracking
+                    </h2>
+                    <Card>
+                      <CardContent className="p-6">
+                        <div className="space-y-6">
+                          <div>
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="font-medium">Overall Progress</span>
+                              <span className="text-2xl font-bold text-blue-600">{selectedProject.progress}%</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-4">
+                              <div 
+                                className="bg-gradient-to-r from-blue-500 to-purple-500 h-4 rounded-full transition-all duration-500 flex items-center justify-end pr-2"
+                                style={{ width: `${selectedProject.progress}%` }}
+                              >
+                                {selectedProject.progress > 15 && (
+                                  <span className="text-white text-xs font-medium">
+                                    {selectedProject.progress}%
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {selectedProject.budget && (
+                            <div>
+                              <div className="flex items-center justify-between mb-3">
+                                <span className="font-medium">Budget Utilization</span>
+                                <span className="text-lg font-semibold">
+                                  ${selectedProject.budget.used.toLocaleString()} / ${selectedProject.budget.total.toLocaleString()}
+                                </span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-4">
+                                <div 
+                                  className={`h-4 rounded-full transition-all duration-500 flex items-center justify-end pr-2 ${
+                                    selectedProject.budget.progress > 90 ? 'bg-gradient-to-r from-red-500 to-red-600' : 
+                                    selectedProject.budget.progress > 75 ? 'bg-gradient-to-r from-yellow-500 to-orange-500' : 
+                                    'bg-gradient-to-r from-green-500 to-green-600'
+                                  }`}
+                                  style={{ width: `${Math.min(selectedProject.budget.progress, 100)}%` }}
+                                >
+                                  {selectedProject.budget.progress > 15 && (
+                                    <span className="text-white text-xs font-medium">
+                                      {selectedProject.budget.progress.toFixed(1)}%
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex justify-between text-xs text-muted-foreground mt-2">
+                                <span>Used: ${selectedProject.budget.used.toLocaleString()}</span>
+                                <span>Remaining: ${(selectedProject.budget.total - selectedProject.budget.used).toLocaleString()}</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Team Management */}
+                  <div className="space-y-4">
+                    <h2 className="text-xl font-semibold flex items-center gap-2">
+                      <Users className="h-5 w-5 text-purple-600" />
+                      Team Management
+                    </h2>
+                    <Card>
+                      <CardContent className="p-6">
+                        <div className="space-y-6">
+                          {/* Investigators */}
+                          {(selectedProject.principal_investigator || selectedProject.co_principal_investigator) && (
+                            <div>
+                              <h3 className="font-medium mb-4">Project Leaders</h3>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {selectedProject.principal_investigator && (
+                                  <div className="bg-blue-50 p-4 rounded-lg">
+                                    <div className="flex items-center gap-3">
+                                      <div className="bg-blue-600 p-2 rounded-full">
+                                        <User className="h-4 w-4 text-white" />
+                                      </div>
+                                      <div>
+                                        <p className="font-medium text-blue-900">Principal Investigator</p>
+                                        <p className="text-blue-700">{selectedProject.principal_investigator}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                                {selectedProject.co_principal_investigator && (
+                                  <div className="bg-green-50 p-4 rounded-lg">
+                                    <div className="flex items-center gap-3">
+                                      <div className="bg-green-600 p-2 rounded-full">
+                                        <User className="h-4 w-4 text-white" />
+                                      </div>
+                                      <div>
+                                        <p className="font-medium text-green-900">Co-Principal Investigator</p>
+                                        <p className="text-green-700">{selectedProject.co_principal_investigator}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Team Members */}
+                          <div>
+                            <div className="flex items-center justify-between mb-4">
+                              <h3 className="font-medium">Team Members</h3>
+                              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                                {selectedProject.teamMembers} member{selectedProject.teamMembers !== 1 ? 's' : ''}
+                              </Badge>
+                            </div>
+                            {selectedProject.team && selectedProject.team.length > 0 ? (
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                {selectedProject.team.map((member, index) => (
+                                  <div key={index} className="bg-gray-50 p-3 rounded-lg">
+                                    <div className="flex items-center gap-2">
+                                      <div className="bg-gray-400 w-8 h-8 rounded-full flex items-center justify-center">
+                                        <span className="text-white text-xs font-medium">
+                                          {member.split(' ').map(n => n[0]).join('').toUpperCase()}
+                                        </span>
+                                      </div>
+                                      <span className="text-sm font-medium text-gray-700">{member}</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-muted-foreground text-sm">No team members assigned yet.</p>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
                 </div>
-              )}
+
+                {/* Sidebar */}
+                <div className="space-y-6">
+                  {/* Quick Actions */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <PlayCircle className="h-5 w-5" />
+                        Quick Actions
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <Button
+                        onClick={() => {
+                          handleStatusChange(selectedProject.id, 
+                            selectedProject.status === 'active' ? 'paused' : 
+                            selectedProject.status === 'paused' ? 'active' : 'active'
+                          );
+                        }}
+                        disabled={operationInProgress.has(selectedProject.id)}
+                        className="w-full"
+                        variant={selectedProject.status === 'active' ? 'destructive' : 'default'}
+                      >
+                        {selectedProject.status === 'active' ? (
+                          <>
+                            <PauseCircle className="h-4 w-4 mr-2" />
+                            Pause Project
+                          </>
+                        ) : (
+                          <>
+                            <PlayCircle className="h-4 w-4 mr-2" />
+                            {selectedProject.status === 'paused' ? 'Resume Project' : 'Start Project'}
+                          </>
+                        )}
+                      </Button>
+                      
+                      {selectedProject.status !== 'completed' && (
+                        <Button
+                          onClick={() => handleStatusChange(selectedProject.id, 'completed')}
+                          disabled={operationInProgress.has(selectedProject.id)}
+                          className="w-full"
+                          variant="outline"
+                        >
+                          <CheckCircle2 className="h-4 w-4 mr-2" />
+                          Mark Complete
+                        </Button>
+                      )}
+                      
+                      <Button
+                        onClick={() => {
+                          handleEditProject(selectedProject);
+                          setSelectedProject(null);
+                        }}
+                        className="w-full"
+                        variant="outline"
+                      >
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit Project
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  {/* Project Statistics */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <BarChart3 className="h-5 w-5" />
+                        Project Statistics
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-muted-foreground">Project Duration</span>
+                          <span className="font-medium">
+                            {Math.ceil((new Date().getTime() - new Date(selectedProject.startDate).getTime()) / (1000 * 60 * 60 * 24))} days
+                          </span>
+                        </div>
+                        
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-muted-foreground">Team Size</span>
+                          <span className="font-medium">{selectedProject.teamMembers} members</span>
+                        </div>
+                        
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-muted-foreground">Status</span>
+                          <Badge variant="outline" className={getStatusColor(selectedProject.status)}>
+                            {selectedProject.status.charAt(0).toUpperCase() + selectedProject.status.slice(1)}
+                          </Badge>
+                        </div>
+
+                        {selectedProject.budget && (
+                          <>
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-muted-foreground">Total Budget</span>
+                              <span className="font-medium">${selectedProject.budget.total.toLocaleString()}</span>
+                            </div>
+                            
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-muted-foreground">Budget Used</span>
+                              <span className="font-medium">${selectedProject.budget.used.toLocaleString()}</span>
+                            </div>
+                            
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-muted-foreground">Remaining</span>
+                              <span className="font-medium text-green-600">
+                                ${(selectedProject.budget.total - selectedProject.budget.used).toLocaleString()}
+                              </span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Project Timeline */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Clock className="h-5 w-5" />
+                        Timeline
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="flex items-start gap-3">
+                          <div className="bg-green-500 w-3 h-3 rounded-full mt-1"></div>
+                          <div>
+                            <p className="font-medium text-sm">Project Started</p>
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(selectedProject.startDate).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-start gap-3">
+                          <div className="bg-blue-500 w-3 h-3 rounded-full mt-1"></div>
+                          <div>
+                            <p className="font-medium text-sm">Current Progress</p>
+                            <p className="text-xs text-muted-foreground">
+                              {selectedProject.progress}% completed
+                            </p>
+                          </div>
+                        </div>
+                        
+                        {selectedProject.endDate && (
+                          <div className="flex items-start gap-3">
+                            <div className="bg-orange-500 w-3 h-3 rounded-full mt-1"></div>
+                            <div>
+                              <p className="font-medium text-sm">Expected End</p>
+                              <p className="text-xs text-muted-foreground">
+                                {new Date(selectedProject.endDate).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
             </div>
-            
-            <div className="mt-6">
-              <Button 
-                variant="outline" 
-                onClick={() => setSelectedProject(null)}
-              >
-                Close Details
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {/* Create Project Dialog */}

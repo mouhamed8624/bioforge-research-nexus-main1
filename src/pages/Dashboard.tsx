@@ -1,18 +1,35 @@
-import { Users, ClipboardList, BookOpen, PackageX, TriangleAlert, CheckSquare, TestTube, Beaker, FolderOpen, CreditCard } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { MainLayout } from "@/components/layout/MainLayout";
-import { PageContainer } from "@/components/layout/PageContainer";
-import { StatCard } from "@/components/dashboard/StatCard";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
-import { fetchInventoryItems } from "@/services/inventory/supabaseService";
+import { StatCard } from "@/components/dashboard/StatCard";
+import { RecentActivities } from "@/components/dashboard/RecentActivities";
+import { RecentAllActivities } from "@/components/dashboard/RecentAllActivities";
+import { RecentPapers } from "@/components/dashboard/RecentPapers";
+import { BudgetChart } from "@/components/dashboard/BudgetChart";
 import { InventoryStatus } from "@/components/dashboard/InventoryStatus";
 import { AttendanceSummary } from "@/components/dashboard/AttendanceSummary";
-import { RecentPapers } from "@/components/dashboard/RecentPapers";
-import { RecentAllActivities } from "@/components/dashboard/RecentAllActivities";
-import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/contexts/AuthContext";
+import { MainLayout } from "@/components/layout/MainLayout";
+import { PageContainer } from "@/components/layout/PageContainer";
+import { supabase } from "@/integrations/supabase/client";
+import { fetchInventoryItems } from "@/services/inventory/supabaseService";
+import { 
+  Users, 
+  ClipboardList, 
+  BookOpen, 
+  PackageX, 
+  TriangleAlert, 
+  CheckSquare, 
+  TestTube, 
+  Beaker, 
+  FolderOpen, 
+  CreditCard
+} from "lucide-react";
 
 const Dashboard = () => {
   const { userProfile } = useAuth();
@@ -34,15 +51,17 @@ const Dashboard = () => {
   // Loading states
   const [patientsLoading, setPatientsLoading] = useState(true);
   const [isStatsLoading, setIsStatsLoading] = useState({
-    tasks: true,
-    patients: true,
-    papers: true,
-    activeProjects: true,
-    todos: true,
-    dbs: true,
-    bioBanks: true,
-    plaquettes: true,
+    tasks: false,
+    patients: false,
+    papers: false,
+    activeProjects: false,
+    todos: false,
+    dbs: false,
+    bioBanks: false,
+    plaquettes: false,
   });
+
+
 
   // Query for inventory summary for financial role
   const { data: inventorySummary, isLoading: isInventorySummaryLoading } = useQuery({
@@ -215,6 +234,8 @@ const Dashboard = () => {
     fetchPatientCount();
   }, [userRole, isLabUser]);
 
+
+
   // Render FIELD role: minimal, just one centered stat card
   if (userRole === "field") {
     return (
@@ -337,6 +358,9 @@ const Dashboard = () => {
             <Badge variant="secondary" className="capitalize">{userRole}</Badge>
           </div>
         )}
+
+
+
         <div className="space-y-6">
           <div className={`grid grid-cols-1 md:grid-cols-2 ${isAdminOrPresident ? 'lg:grid-cols-3' : isManagerOrDirector ? 'lg:grid-cols-2' : isLabUser ? 'lg:grid-cols-2' : 'lg:grid-cols-3'} gap-6`}>
             {renderStatCard(

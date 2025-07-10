@@ -42,13 +42,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [showRoleSelection, setShowRoleSelection] = useState(false);
   
-  const fetchUserProfile = async (userId: string) => {
+  const fetchUserProfile = async (userId: string): Promise<UserProfile | null> => {
     try {
-      const { data, error } = await supabase
+      // Use faster query with minimal data and race condition for timeout
+      const profilePromise = supabase
         .from("profiles")
-        .select("*")
+        .select("id, email, role, created_at, updated_at")
         .eq("id", userId)
-        .single();
+        .maybeSingle();
+      
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Profile fetch timeout')), 1000)
+      );
+      
+      const { data, error } = await Promise.race([profilePromise, timeoutPromise]);
       
       if (error && error.code !== 'PGRST116') {
         console.error("Error fetching user profile:", error);
@@ -79,6 +86,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setCurrentUser(session?.user ?? null);
       
       if (session?.user) {
+        // Fetch profile with faster timeout
         const profile = await fetchUserProfile(session.user.id);
         setUserProfile(profile);
         
@@ -91,17 +99,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } catch (error) {
       console.error("Error in auth state change:", error);
     } finally {
-      // Always set loading to false, regardless of success or failure
+      // Immediately set loading to false for faster UI response
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    let mounted = true;
+    
     const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
 
     const initializeAuth = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
+        // Get session with timeout for faster response
+        const { data: { session }, error } = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<{ data: { session: Session | null }, error: any }>((_, reject) =>
+            setTimeout(() => reject(new Error('Session timeout')), 800)
+          )
+        ]);
+        
+        if (!mounted) return;
+        
         if (error) {
           console.error("Error getting session:", error);
           setLoading(false);
@@ -111,21 +130,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         await handleAuthStateChange('INITIAL_SESSION', session);
       } catch (error) {
         console.error("Error initializing auth:", error);
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
-    // Fast timeout for better performance - force stop loading after 2 seconds
+    // Aggressive timeout for ultra-fast loading - force stop after 1 second
     const timeout = setTimeout(() => {
-      console.log("Auth timeout reached, forcing loading to false");
-      setLoading(false);
-    }, 2000); // Reduced to 2 seconds for faster response
+      if (mounted) {
+        console.log("Fast auth timeout reached, forcing loading to false");
+        setLoading(false);
+      }
+    }, 1000); // Reduced to 1 second for ultra-fast response
 
     initializeAuth().finally(() => {
-      clearTimeout(timeout);
+      if (mounted) {
+        clearTimeout(timeout);
+      }
     });
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
       clearTimeout(timeout);
     };
@@ -193,6 +219,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setShowRoleSelection(false);
   };
   
+  // Show loading only for the first 1 second, then force show app
   const shouldShowLoading = loading && !showRoleSelection;
   
   const value = useMemo(() => ({

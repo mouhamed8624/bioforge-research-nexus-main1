@@ -8,7 +8,8 @@ import { RoleProtectedRoute } from "@/components/auth/RoleProtectedRoute";
 import { RoleSelectionDialog } from "@/components/auth/RoleSelectionDialog";
 import { ErrorBoundary } from "@/components/layout/ErrorBoundary";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect } from "react";
+import { createDataPreloader } from "@/services/dataPreloader";
 
 // Critical pages loaded immediately (login, dashboard, notfound)
 import Login from "@/pages/Login";
@@ -55,13 +56,13 @@ const ProtectedPageRoute = ({ children, allowedRoles }: { children: React.ReactN
   </ProtectedRoute>
 );
 
-// Optimized React Query configuration for background loading and optimistic updates
+// Optimized React Query configuration for background loading, optimistic updates, and aggressive caching
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Data freshness settings
-      staleTime: 5 * 60 * 1000, // 5 minutes - data considered fresh
-      gcTime: 10 * 60 * 1000, // 10 minutes - garbage collection time
+      // Data freshness settings - cache for longer to avoid reloading
+      staleTime: 10 * 60 * 1000, // 10 minutes - data considered fresh for longer
+      gcTime: 30 * 60 * 1000, // 30 minutes - keep in cache longer
       
       // Retry configuration with smart error handling
       retry: (failureCount, error: any) => {
@@ -77,20 +78,21 @@ const queryClient = new QueryClient({
         return failureCount < 3;
       },
       
-      // Background refetching settings
-      refetchOnWindowFocus: false, // Disable refetch on window focus for better UX
+      // Background refetching settings - keep data fresh in background
+      refetchOnWindowFocus: true, // Enable refetch on focus for fresh data
       refetchOnReconnect: true, // Refetch when network reconnects
-      refetchOnMount: 'always', // Always refetch on component mount for fresh data
+      refetchOnMount: false, // Don't refetch on mount if data is fresh
       
-      // Background loading optimizations
+      // Background loading optimizations - show cached data immediately
       placeholderData: (previousData) => previousData, // Show stale data while loading
       
       // Performance optimizations
       notifyOnChangeProps: ['data', 'error'], // Only notify on data/error changes
       structuralSharing: true, // Enable structural sharing for better performance
       
-      // Query invalidation settings
-      refetchInterval: false, // Disable automatic refetching intervals
+      // Aggressive prefetching
+      refetchInterval: false, // Disable automatic intervals
+      networkMode: 'online', // Only run when online
     },
     mutations: {
       // Retry configuration for mutations
@@ -146,12 +148,28 @@ const queryClient = new QueryClient({
           }
         }
       },
+      
+      // Global mutation cache settings
+      networkMode: 'online',
     },
   },
 });
 
+// Initialize data preloader
+const dataPreloader = createDataPreloader(queryClient);
+
 function AppContent() {
-  const { showRoleSelection, currentUser, onRoleSelected, loading } = useAuth();
+  const { showRoleSelection, currentUser, onRoleSelected, loading, userProfile } = useAuth();
+
+  // Preload critical data after authentication
+  useEffect(() => {
+    if (currentUser && userProfile?.role && !loading) {
+      // Small delay to ensure UI is ready, then preload data
+      setTimeout(() => {
+        dataPreloader.preloadCriticalData(userProfile.role);
+      }, 100);
+    }
+  }, [currentUser, userProfile?.role, loading]);
 
   // Show loading spinner while auth is initializing
   if (loading) {
@@ -159,7 +177,7 @@ function AppContent() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <LoadingSpinner size="lg" className="mx-auto mb-4" />
-          <p className="text-muted-foreground">Initializing application...</p>
+          <p className="text-muted-foreground">Loading...</p>
         </div>
       </div>
     );
@@ -183,7 +201,7 @@ function AppContent() {
         
         {/* Lazy-loaded Protected Routes - Super Fast Loading */}
         <Route path="/todo-list" element={
-          <ProtectedPageRoute allowedRoles={['president', 'admin', 'lab', 'general_director', 'manager', 'field', 'front_desk', 'financial']}>
+          <ProtectedPageRoute allowedRoles={['president', 'admin', 'lab', 'general_director', 'manager', 'front_desk', 'financial']}>
             <TodoList />
           </ProtectedPageRoute>
         } />
@@ -279,7 +297,7 @@ function AppContent() {
         } />
         
         <Route path="/button-project" element={
-          <ProtectedPageRoute allowedRoles={['president', 'admin', 'general_director', 'manager', 'field', 'front_desk', 'financial']}>
+          <ProtectedPageRoute allowedRoles={['president', 'admin', 'general_director', 'manager', 'front_desk', 'financial']}>
             <ButtonProject />
           </ProtectedPageRoute>
         } />
