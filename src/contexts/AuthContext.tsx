@@ -41,6 +41,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [showRoleSelection, setShowRoleSelection] = useState(false);
+  const [roleSelectionDismissed, setRoleSelectionDismissed] = useState(false);
   
   const fetchUserProfile = async (userId: string): Promise<UserProfile | null> => {
     try {
@@ -74,8 +75,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const profile = await fetchUserProfile(currentUser.id);
       setUserProfile(profile);
       
+      // If user now has a role, hide role selection permanently
       if (profile?.role) {
         setShowRoleSelection(false);
+        setRoleSelectionDismissed(true);
+        // Cache the role selection state to prevent showing again
+        localStorage.setItem(`roleSelected_${currentUser.id}`, 'true');
       }
     }
   };
@@ -86,15 +91,37 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setCurrentUser(session?.user ?? null);
       
       if (session?.user) {
+        // Check if user has already selected a role (cached)
+        const hasSelectedRole = localStorage.getItem(`roleSelected_${session.user.id}`) === 'true';
+        
+        if (hasSelectedRole) {
+          // User has already selected a role before, don't show dialog
+          setRoleSelectionDismissed(true);
+          setShowRoleSelection(false);
+        } else {
+          // Reset dismissal state for new user
+          setRoleSelectionDismissed(false);
+        }
+        
         // Fetch profile with faster timeout
         const profile = await fetchUserProfile(session.user.id);
         setUserProfile(profile);
         
-        const needsRoleSelection = !profile?.role;
+        // Only show role selection if:
+        // 1. User doesn't have a role AND
+        // 2. Haven't already dismissed it AND 
+        // 3. Haven't cached a previous selection
+        const needsRoleSelection = !profile?.role && !roleSelectionDismissed && !hasSelectedRole;
         setShowRoleSelection(needsRoleSelection);
+        
+        // If user has a role, cache that they've completed role selection
+        if (profile?.role && !hasSelectedRole) {
+          localStorage.setItem(`roleSelected_${session.user.id}`, 'true');
+        }
       } else {
         setUserProfile(null);
         setShowRoleSelection(false);
+        setRoleSelectionDismissed(false);
       }
     } catch (error) {
       console.error("Error in auth state change:", error);
@@ -142,7 +169,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         console.log("Fast auth timeout reached, forcing loading to false");
         setLoading(false);
       }
-    }, 1000); // Reduced to 1 second for ultra-fast response
+    }, 1000);
 
     initializeAuth().finally(() => {
       if (mounted) {
@@ -202,12 +229,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   
   const logout = async () => {
     try {
+      // Clean up role selection cache on logout
+      if (currentUser) {
+        localStorage.removeItem(`roleSelected_${currentUser.id}`);
+      }
+      
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error("Logout failed:", error);
         throw error;
       }
       setShowRoleSelection(false);
+      setRoleSelectionDismissed(false);
       setUserProfile(null);
     } catch (error) {
       console.error("Logout failed:", error);
@@ -217,6 +250,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const onRoleSelected = () => {
     setShowRoleSelection(false);
+    setRoleSelectionDismissed(true);
+    
+    // Cache that the user has completed role selection
+    if (currentUser) {
+      localStorage.setItem(`roleSelected_${currentUser.id}`, 'true');
+    }
   };
   
   // Show loading only for the first 1 second, then force show app

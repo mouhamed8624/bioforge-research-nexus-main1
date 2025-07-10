@@ -182,11 +182,17 @@ export const RoleSelectionDialog = ({ open, userId, onRoleSelected }: RoleSelect
 
   return (
     <Dialog open={open} onOpenChange={() => {}}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" showCloseButton={false}>
+      <DialogContent 
+        className="max-w-4xl max-h-[90vh] overflow-y-auto" 
+        showCloseButton={false}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader className="text-center pb-6">
           <DialogTitle className="text-2xl font-bold">Welcome to CIGASS</DialogTitle>
           <p className="text-muted-foreground">
-            Please select your role to customize your experience
+            Please select your role to customize your experience. This is required to continue.
           </p>
         </DialogHeader>
 
@@ -262,7 +268,7 @@ export const RoleSelectionDialog = ({ open, userId, onRoleSelected }: RoleSelect
                 Assigning...
               </>
             ) : (
-              showPasswordInput ? 'Confirm Role' : 'Confirm Role'
+              showPasswordInput ? 'Confirm Role' : 'Continue'
             )}
           </Button>
         </div>
