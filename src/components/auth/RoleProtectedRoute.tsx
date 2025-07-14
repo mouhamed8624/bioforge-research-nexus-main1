@@ -1,4 +1,4 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface RoleProtectedRouteProps {
@@ -92,6 +92,7 @@ const ROLE_NAV_CONFIG: Record<string, string[]> = {
 
 export const RoleProtectedRoute = ({ children, allowedRoles, redirectTo = "/dashboard" }: RoleProtectedRouteProps) => {
   const { userProfile } = useAuth();
+  const location = useLocation();
   
   // If no user profile yet, show loading
   if (!userProfile) {
@@ -108,7 +109,7 @@ export const RoleProtectedRoute = ({ children, allowedRoles, redirectTo = "/dash
   
   // If user has no role, allow dashboard access temporarily to prevent infinite redirects
   if (!userRole) {
-    const currentPath = window.location.pathname;
+    const currentPath = location.pathname;
     if (currentPath === "/" || currentPath === "/dashboard") {
       return <>{children}</>;
     }
@@ -120,7 +121,7 @@ export const RoleProtectedRoute = ({ children, allowedRoles, redirectTo = "/dash
   
   // If no access, redirect but prevent infinite redirects
   if (!hasAccess) {
-    const currentPath = window.location.pathname;
+    const currentPath = location.pathname;
     if (currentPath !== redirectTo) {
       return <Navigate to={redirectTo} replace />;
     } else {

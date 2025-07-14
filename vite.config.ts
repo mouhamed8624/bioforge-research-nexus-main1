@@ -7,6 +7,8 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    // Enable client-side routing for development
+    historyApiFallback: true,
   },
   plugins: [
     react(),
@@ -53,5 +55,13 @@ export default defineConfig(({ mode }) => ({
       'date-fns',
       'lucide-react'
     ],
+  },
+  // Add support for client-side routing
+  preview: {
+    // For production preview
+    port: 4173,
+    host: true,
+    // Enable client-side routing for preview mode
+    historyApiFallback: true,
   },
 }));

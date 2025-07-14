@@ -3,17 +3,20 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit, Trash2, Users, UserCheck, Calendar, BarChart3, CheckCircle } from "lucide-react";
+import { Plus, Edit, Trash2, Users, UserCheck, Calendar, BarChart3, CheckCircle, Eye, Shield } from "lucide-react";
 import { AttendanceDialog } from "@/components/teams/AttendanceDialog";
 import { AttendanceStatsCard } from "@/components/teams/AttendanceStatsCard";
+import { RolePermissionsOverview } from "@/components/teams/RolePermissionsOverview";
 import { getAttendanceStats, getTeamAttendanceStats, AttendanceStats, markAttendance, initializeMemberAttendance } from "@/services/teams/attendanceService";
 import { useAuth } from "@/contexts/AuthContext";
 import { AttendanceReportDialog } from "@/components/teams/AttendanceReportDialog";
@@ -29,6 +32,53 @@ interface TeamMember {
   created_at: string;
   updated_at: string;
 }
+
+// Role permissions configuration
+const ROLE_NAV_CONFIG: Record<string, string[]> = {
+  financial: [
+    "dashboard", "inventory", "calendar", "reservations", "teams", "todo-list", "button-project"
+  ],
+  manager: [
+    "teams", "dashboard", "calendar", "inventory", "todo-list", "button-project"
+  ],
+  general_director: [
+    "teams", "dashboard", "calendar", "inventory", "todo-list", "button-project"
+  ],
+  lab: [
+    "data-visualization", "pending-submissions", "bio-banks", "dashboard", "dbs", "plaquettes", "reservations", "patients", "todo-list"
+  ],
+  field: [
+    "patients", "dashboard"
+  ],
+  front_desk: [
+    "teams", "dashboard", "todo-list", "button-project"
+  ],
+  president: [
+    "dashboard", "patients", "inventory", "papers", "bio-banks", "dbs", "plaquettes", "calendar", "reservations", "finance", "teams", "settings", "data-visualization", "pending-submissions", "todo-list", "button-project"
+  ],
+  admin: [
+    "dashboard", "patients", "inventory", "papers", "bio-banks", "dbs", "plaquettes", "calendar", "reservations", "finance", "teams", "settings", "data-visualization", "pending-submissions", "todo-list", "button-project"
+  ]
+};
+
+const PAGE_LABELS: Record<string, string> = {
+  dashboard: "Dashboard",
+  patients: "Patients", 
+  inventory: "Inventory",
+  papers: "Papers",
+  "todo-list": "Todo List",
+  "button-project": "Projects",
+  "bio-banks": "Bio Banks",
+  dbs: "DBS",
+  plaquettes: "Plaquettes", 
+  calendar: "Calendar",
+  reservations: "Reservations",
+  finance: "Finance",
+  teams: "Teams",
+  settings: "Settings",
+  "data-visualization": "Data Viz",
+  "pending-submissions": "Lab Approvals"
+};
 
 const Teams = () => {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -52,6 +102,72 @@ const Teams = () => {
   const { toast } = useToast();
   const { userProfile } = useAuth();
   const userRole = userProfile?.role;
+
+  // Helper function to get permission level and info
+  const getPermissionInfo = (role: string) => {
+    const permissions = ROLE_NAV_CONFIG[role] || [];
+    const count = permissions.length;
+    
+    if (count >= 15) return { level: "Full Access", color: "bg-green-500", textColor: "text-green-700", bgColor: "bg-green-100" };
+    if (count >= 10) return { level: "High Access", color: "bg-blue-500", textColor: "text-blue-700", bgColor: "bg-blue-100" };
+    if (count >= 5) return { level: "Medium Access", color: "bg-yellow-500", textColor: "text-yellow-700", bgColor: "bg-yellow-100" };
+    return { level: "Limited Access", color: "bg-red-500", textColor: "text-red-700", bgColor: "bg-red-100" };
+  };
+
+  const getAccessiblePages = (role: string) => {
+    return ROLE_NAV_CONFIG[role] || [];
+  };
+
+  // Helper function to check if a role might be a default/fallback
+  const isDefaultRole = (member: TeamMember) => {
+    // Check if this user was likely assigned a role as a default
+    // Users with just email as name, 'Unknown' name, or empty name are likely defaults
+    const hasDefaultName = member.name === member.email || 
+                          member.name === 'Unknown' || 
+                          !member.name || 
+                          member.name.trim() === '';
+    
+    // If user has a default name AND their role is not in our config, it's likely a default
+    // OR if they have a default name AND they have a field role (common default)
+    return hasDefaultName && (!ROLE_NAV_CONFIG[member.role] || member.role === 'field');
+  };
+
+  // Get role display information
+  const getRoleDisplayInfo = (member: TeamMember) => {
+    const permissions = ROLE_NAV_CONFIG[member.role] || [];
+    
+    // First check if role exists in our configuration
+    if (!ROLE_NAV_CONFIG[member.role]) {
+      return {
+        displayRole: `${member.role} (Invalid)`,
+        isProperRole: false,
+        badge: "bg-red-100 text-red-600",
+        description: "Role not recognized in system"
+      };
+    }
+    
+    // Then check if this might be a default role assignment
+    const isDefault = isDefaultRole(member);
+    if (isDefault) {
+      return {
+        displayRole: "Role Not Set",
+        isProperRole: false,
+        badge: "bg-gray-100 text-gray-600",
+        description: "User needs to select their actual role"
+      };
+    }
+    
+    // Valid role with proper assignment
+    return {
+      displayRole: member.role,
+      isProperRole: true,
+      badge: "",
+      description: `Has access to ${permissions.length} sections`
+    };
+  };
+
+  // Count members who need role setup
+  const membersNeedingRoleSetup = teamMembers.filter(member => !getRoleDisplayInfo(member).isProperRole);
 
   // Enhanced fetch function - prioritize team_members data and supplement with profiles
   const fetchTeamMembers = useCallback(async () => {
@@ -445,6 +561,7 @@ const Teams = () => {
           <TabsList>
             <TabsTrigger value="members">Team Members</TabsTrigger>
             {userRole !== 'financial' && <TabsTrigger value="attendance">Attendance</TabsTrigger>}
+            {userRole === 'president' && <TabsTrigger value="permissions">Access Overview</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="members" className="space-y-6">
@@ -561,7 +678,7 @@ const Teams = () => {
             </div>
 
             {/* Team Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Total Members</CardTitle>
@@ -581,20 +698,72 @@ const Teams = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{uniqueRoles.length}</div>
+                  <p className="text-xs text-muted-foreground">
+                    Different role types
+                  </p>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Research Team</CardTitle>
-                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <CardTitle className="text-sm font-medium">Proper Roles</CardTitle>
+                  <CheckCircle className="h-4 w-4 text-green-600" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
-                    {teamMembers.filter(member => member.role === 'Research').length}
+                    {teamMembers.length - membersNeedingRoleSetup.length}
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Members with valid roles
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Need Setup</CardTitle>
+                  <Users className="h-4 w-4 text-orange-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-orange-600">
+                    {membersNeedingRoleSetup.length}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Members need role selection
+                  </p>
                 </CardContent>
               </Card>
             </div>
+
+            {/* Role Setup Alert for President */}
+            {userRole === 'president' && membersNeedingRoleSetup.length > 0 && (
+              <Card className="border-orange-200 bg-orange-50">
+                <CardHeader>
+                  <CardTitle className="text-orange-800 flex items-center gap-2">
+                    <Shield className="h-5 w-5" />
+                    Action Required: Role Setup
+                  </CardTitle>
+                  <CardDescription className="text-orange-700">
+                    {membersNeedingRoleSetup.length} team member{membersNeedingRoleSetup.length !== 1 ? 's' : ''} need{membersNeedingRoleSetup.length === 1 ? 's' : ''} to select their proper role.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <p className="text-sm text-orange-700">
+                      Team members who need to set up their roles:
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {membersNeedingRoleSetup.map((member) => (
+                        <Badge key={member.id} variant="outline" className="bg-white border-orange-200 text-orange-700">
+                          {member.name} ({member.email})
+                        </Badge>
+                      ))}
+                    </div>
+                    <p className="text-xs text-orange-600 mt-3">
+                      💡 These users need to log in and complete the role selection process to get proper access permissions.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Team Members Table */}
             <Card>
@@ -619,6 +788,7 @@ const Teams = () => {
                       <TableRow>
                         <TableHead>Name</TableHead>
                         <TableHead>Role</TableHead>
+                        <TableHead>Access Level</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Email</TableHead>
                         {userRole !== 'financial' && <TableHead>Mark Present</TableHead>}
@@ -626,12 +796,86 @@ const Teams = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredMembers.map((member) => (
+                      {filteredMembers.map((member) => {
+                        const roleInfo = getRoleDisplayInfo(member);
+                        const permissionInfo = getPermissionInfo(member.role);
+                        const accessiblePages = getAccessiblePages(member.role);
+                        
+                        return (
                         <TableRow key={member.id}>
                           <TableCell className="font-medium">
                             {member.name}
                           </TableCell>
-                          <TableCell>{member.role}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span className={roleInfo.isProperRole ? "" : "text-gray-500"}>
+                                {roleInfo.displayRole}
+                              </span>
+                              {!roleInfo.isProperRole && (
+                                <Badge className="bg-orange-100 text-orange-700 text-xs">
+                                  Default
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              {roleInfo.isProperRole ? (
+                                <Badge className={`${permissionInfo.bgColor} ${permissionInfo.textColor} text-xs`}>
+                                  {permissionInfo.level}
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-gray-100 text-gray-600 text-xs">
+                                  No Access Set
+                                </Badge>
+                              )}
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                    <Eye className="h-3 w-3" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-80" align="start">
+                                  <div className="space-y-3">
+                                    <div className="flex items-center gap-2">
+                                      <Shield className="h-4 w-4 text-blue-600" />
+                                      <h4 className="font-medium">Access Permissions</h4>
+                                    </div>
+                                    <div>
+                                      {roleInfo.isProperRole ? (
+                                        <>
+                                          <p className="text-sm text-gray-600 mb-2">
+                                            <span className="font-medium">{member.name}</span> can access {accessiblePages.length} sections:
+                                          </p>
+                                          <div className="flex flex-wrap gap-1">
+                                            {accessiblePages.slice(0, 8).map((page) => (
+                                              <Badge key={page} variant="outline" className="text-xs">
+                                                {PAGE_LABELS[page] || page}
+                                              </Badge>
+                                            ))}
+                                            {accessiblePages.length > 8 && (
+                                              <Badge variant="outline" className="text-xs">
+                                                +{accessiblePages.length - 8} more
+                                              </Badge>
+                                            )}
+                                          </div>
+                                        </>
+                                      ) : (
+                                        <div className="text-center py-4">
+                                          <p className="text-sm text-gray-600 mb-2">
+                                            <span className="font-medium">{member.name}</span> has not selected their role yet.
+                                          </p>
+                                          <p className="text-xs text-gray-500">
+                                            They will need to log in and choose their actual role to get proper access permissions.
+                                          </p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+                            </div>
+                          </TableCell>
                           <TableCell>
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                               {member.status}
@@ -690,7 +934,8 @@ const Teams = () => {
                             </div>
                           </TableCell>
                         </TableRow>
-                      ))}
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 )}
@@ -723,6 +968,12 @@ const Teams = () => {
                   );
                 })}
               </div>
+            </TabsContent>
+          )}
+
+          {userRole === 'president' && (
+            <TabsContent value="permissions" className="space-y-6">
+              <RolePermissionsOverview teamMembers={teamMembers} />
             </TabsContent>
           )}
         </Tabs>
