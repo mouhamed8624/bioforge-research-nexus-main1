@@ -13,6 +13,7 @@ import { LogIn, UserPlus } from "lucide-react";
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { login, signup } = useAuth();
   const navigate = useNavigate();
@@ -51,6 +52,27 @@ const Login = () => {
 
   const handleSignup = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate passwords match
+    if (password !== confirmPassword) {
+      toast({
+        variant: "destructive",
+        title: "Passwords don't match",
+        description: "Please make sure your passwords match."
+      });
+      return;
+    }
+    
+    // Validate password length
+    if (password.length < 6) {
+      toast({
+        variant: "destructive",
+        title: "Password too short",
+        description: "Password must be at least 6 characters long."
+      });
+      return;
+    }
+    
     setIsSubmitting(true);
     
     try {
@@ -66,6 +88,10 @@ const Login = () => {
           title: "Account created!",
           description: "Please check your email to verify your account."
         });
+        // Clear form after successful signup
+        setEmail("");
+        setPassword("");
+        setConfirmPassword("");
       }
     } catch (error: any) {
       toast({
@@ -76,7 +102,7 @@ const Login = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [email, password, signup]);
+  }, [email, password, confirmPassword, signup]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-cigass-50 to-blue-50 p-4">
@@ -162,6 +188,17 @@ const Login = () => {
                   <p className="text-xs text-muted-foreground">
                     Password must be at least 6 characters long
                   </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-confirm-password">Confirm Password</Label>
+                  <Input 
+                    id="signup-confirm-password" 
+                    type="password" 
+                    required 
+                    value={confirmPassword} 
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    autoComplete="new-password"
+                  />
                 </div>
               </CardContent>
               <CardFooter>

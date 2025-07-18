@@ -166,8 +166,7 @@ const Teams = () => {
     };
   };
 
-  // Count members who need role setup
-  const membersNeedingRoleSetup = teamMembers.filter(member => !getRoleDisplayInfo(member).isProperRole);
+
 
   // Enhanced fetch function - prioritize team_members data and supplement with profiles
   const fetchTeamMembers = useCallback(async () => {
@@ -705,65 +704,22 @@ const Teams = () => {
               </Card>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Proper Roles</CardTitle>
-                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <CardTitle className="text-sm font-medium">Total Members</CardTitle>
+                  <Users className="h-4 w-4 text-blue-600" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
-                    {teamMembers.length - membersNeedingRoleSetup.length}
+                    {teamMembers.length}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Members with valid roles
+                    All team members
                   </p>
                 </CardContent>
               </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Need Setup</CardTitle>
-                  <Users className="h-4 w-4 text-orange-600" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-orange-600">
-                    {membersNeedingRoleSetup.length}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Members need role selection
-                  </p>
-                </CardContent>
-              </Card>
+
             </div>
 
-            {/* Role Setup Alert for President */}
-            {userRole === 'president' && membersNeedingRoleSetup.length > 0 && (
-              <Card className="border-orange-200 bg-orange-50">
-                <CardHeader>
-                  <CardTitle className="text-orange-800 flex items-center gap-2">
-                    <Shield className="h-5 w-5" />
-                    Action Required: Role Setup
-                  </CardTitle>
-                  <CardDescription className="text-orange-700">
-                    {membersNeedingRoleSetup.length} team member{membersNeedingRoleSetup.length !== 1 ? 's' : ''} need{membersNeedingRoleSetup.length === 1 ? 's' : ''} to select their proper role.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <p className="text-sm text-orange-700">
-                      Team members who need to set up their roles:
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {membersNeedingRoleSetup.map((member) => (
-                        <Badge key={member.id} variant="outline" className="bg-white border-orange-200 text-orange-700">
-                          {member.name} ({member.email})
-                        </Badge>
-                      ))}
-                    </div>
-                    <p className="text-xs text-orange-600 mt-3">
-                      💡 These users need to log in and complete the role selection process to get proper access permissions.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+
 
             {/* Team Members Table */}
             <Card>
