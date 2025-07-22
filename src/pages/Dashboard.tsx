@@ -28,7 +28,10 @@ import {
   TestTube, 
   Beaker, 
   FolderOpen, 
-  CreditCard
+  CreditCard,
+  CheckCircle,
+  XCircle,
+  Loader2
 } from "lucide-react";
 
 const Dashboard = () => {
@@ -61,7 +64,26 @@ const Dashboard = () => {
     plaquettes: false,
   });
 
+  // Database connectivity indicator state
+  const [dbStatus, setDbStatus] = useState<'loading' | 'connected' | 'error'>('loading');
 
+  useEffect(() => {
+    if (isAdminOrPresident) {
+      setDbStatus('loading');
+      (async () => {
+        try {
+          const { error } = await supabase
+            .from('profiles')
+            .select('id')
+            .limit(1);
+          if (error) setDbStatus('error');
+          else setDbStatus('connected');
+        } catch {
+          setDbStatus('error');
+        }
+      })();
+    }
+  }, [isAdminOrPresident]);
 
   // Query for inventory summary for financial role
   const { data: inventorySummary, isLoading: isInventorySummaryLoading } = useQuery({
@@ -358,7 +380,20 @@ const Dashboard = () => {
             <Badge variant="secondary" className="capitalize">{userRole}</Badge>
           </div>
         )}
-
+        {/* DB Connectivity Indicator for admin/president */}
+        {isAdminOrPresident && (
+          <div className="mb-2 flex items-center gap-2 text-xs">
+            {dbStatus === 'loading' && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+            {dbStatus === 'connected' && <CheckCircle className="h-4 w-4 text-green-500" />}
+            {dbStatus === 'error' && <XCircle className="h-4 w-4 text-red-500" />}
+            <span className="text-muted-foreground">Database connectivity</span>
+            <span className={
+              dbStatus === 'connected' ? 'text-green-600' : dbStatus === 'error' ? 'text-red-600' : 'text-muted-foreground'
+            }>
+              {dbStatus === 'connected' ? 'Connected' : dbStatus === 'error' ? 'Error' : 'Checking...'}
+            </span>
+          </div>
+        )}
 
 
         <div className="space-y-6">

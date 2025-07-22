@@ -15,6 +15,7 @@ import { createDataPreloader } from "@/services/dataPreloader";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import NotFound from "@/pages/NotFound";
+import TempCaptors from "@/pages/TempCaptors";
 
 // Lazy load all other pages for better performance
 const Index = lazy(() => import("@/pages/Index"));
@@ -301,6 +302,8 @@ function AppContent() {
             <ButtonProject />
           </ProtectedPageRoute>
         } />
+        
+        <Route path="/temp-captors" element={<TempCaptors />} />
         
         <Route path="*" element={<NotFound />} />
       </Routes>

@@ -15,6 +15,7 @@ import {
   CheckSquare,
   FolderOpen,
   CreditCard,
+  Thermometer,
 } from "lucide-react";
 import { NavLink } from "@/components/layout/NavLink";
 import { NavSection } from "@/components/layout/NavSection";
@@ -93,7 +94,8 @@ const ROLE_NAV_CONFIG: Record<string, string[]> = {
     "data-visualization",
     "pending-submissions",
     "todo-list",
-    "button-project"
+    "button-project",
+    "temp-captors"
   ],
   admin: [
     "dashboard",
@@ -111,7 +113,8 @@ const ROLE_NAV_CONFIG: Record<string, string[]> = {
     "data-visualization",
     "pending-submissions",
     "todo-list",
-    "button-project"
+    "button-project",
+    "temp-captors"
   ]
 };
 
@@ -123,6 +126,7 @@ const NAV_ITEMS = [
       { to: "/patients", label: "Patients", icon: <Users />, key: "patients" },
       { to: "/inventory", label: "Inventory", icon: <Package />, key: "inventory" },
       { to: "/papers", label: "Papers", icon: <BookOpen />, key: "papers" },
+      { to: "/temp-captors", label: "Temp Captors", icon: <Thermometer />, key: "temp-captors" },
       { to: "/todo-list", label: "Todo List", icon: <CheckSquare />, key: "todo-list" },
       { to: "/button-project", label: "Project", icon: <FolderOpen />, key: "button-project" },
     ]
