@@ -8,9 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { CreateTodoDialog } from "@/components/todo/CreateTodoDialog";
-import { Clock, CheckCircle2, Circle, User, FolderOpen, Percent, UserCheck } from "lucide-react";
+import { Clock, CheckCircle2, Circle, User, FolderOpen, Percent, UserCheck, Users as UsersIcon, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 
 // Define TodoItem type locally
 interface TodoItem {
@@ -23,6 +24,7 @@ interface TodoItem {
   created_at?: string;
   percentage: number;
   project_id?: string;
+  deadline?: string; // ISO string
 }
 
 interface Project {
@@ -46,6 +48,9 @@ const TodoListPage = () => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const { userProfile } = useAuth();
+  const [showReport, setShowReport] = useState(false);
+  const [showGlobalReport, setShowGlobalReport] = useState(false);
+  const [allUsers, setAllUsers] = useState<{ id: string; email: string | null }[]>([]);
 
   // Fetch projects from Supabase
   const fetchProjects = async () => {
@@ -87,6 +92,18 @@ const TodoListPage = () => {
   useEffect(() => {
     localStorage.setItem('todos', JSON.stringify(todos));
   }, [todos]);
+
+  // Fetch all users from profiles table for global report
+  useEffect(() => {
+    if (userProfile?.role === 'admin' || userProfile?.role === 'president') {
+      supabase
+        .from('profiles')
+        .select('id, email')
+        .then(({ data, error }) => {
+          if (!error && data) setAllUsers(data);
+        });
+    }
+  }, [userProfile?.role]);
 
   const updateProjectProgress = async (projectId: string, percentageToAdd: number) => {
     try {
@@ -235,7 +252,57 @@ const TodoListPage = () => {
   );
   const completedTodos = todos.filter(todo => todo.completed);
 
-  const PendingTaskCard = ({ todo }: { todo: TodoItem }) => {
+  // Report stats for current user
+  const userCompletedTodos = todos.filter(
+    (todo) => todo.completed && todo.completed_by === userProfile?.email
+  );
+  const userCompletedOnTime = userCompletedTodos.filter(
+    (todo) => todo.deadline && todo.completed_at && new Date(todo.completed_at) <= new Date(todo.deadline)
+  );
+  const userCompletedLate = userCompletedTodos.filter(
+    (todo) => todo.deadline && todo.completed_at && new Date(todo.completed_at) > new Date(todo.deadline)
+  );
+  // Total hours completed: sum of (deadline - created_at) for each completed to-do (in hours, rounded to 2 decimals)
+  const totalHoursCompleted = userCompletedTodos.reduce((sum, todo) => {
+    if (todo.deadline && todo.created_at) {
+      const diffMs = new Date(todo.deadline).getTime() - new Date(todo.created_at).getTime();
+      return sum + Math.max(0, diffMs / (1000 * 60 * 60));
+    }
+    return sum;
+  }, 0);
+
+  // Compute global report for all users (president/admin only)
+  const userStatsMap: Record<string, {
+    completed: number;
+    onTime: number;
+    late: number;
+    totalHours: number;
+  }> = {};
+  todos.forEach(todo => {
+    if (todo.completed && todo.completed_by) {
+      if (!userStatsMap[todo.completed_by]) {
+        userStatsMap[todo.completed_by] = { completed: 0, onTime: 0, late: 0, totalHours: 0 };
+      }
+      userStatsMap[todo.completed_by].completed++;
+      if (todo.deadline && todo.completed_at) {
+        const completedOnTime = new Date(todo.completed_at) <= new Date(todo.deadline);
+        if (completedOnTime) userStatsMap[todo.completed_by].onTime++;
+        else userStatsMap[todo.completed_by].late++;
+        if (todo.created_at) {
+          const diffMs = new Date(todo.deadline).getTime() - new Date(todo.created_at).getTime();
+          userStatsMap[todo.completed_by].totalHours += Math.max(0, diffMs / (1000 * 60 * 60));
+        }
+      }
+    }
+  });
+  // Merge all users with stats, show zeroes for users with no completed to-dos
+  const userStats = allUsers.map(user => {
+    const email = user.email || '(no email)';
+    const stats = userStatsMap[email] || { completed: 0, onTime: 0, late: 0, totalHours: 0 };
+    return { user: email, ...stats };
+  });
+
+  const PendingTaskCard: React.FC<{ todo: TodoItem }> = ({ todo }) => {
     const isAssignedToCurrentUser = todo.assigned_to.includes(userProfile?.email || '');
     const showAdminIndicator = isAdminOrPresident && !isAssignedToCurrentUser;
     
@@ -276,6 +343,12 @@ const TodoListPage = () => {
                   Created: {format(new Date(todo.created_at), 'MMM d, yyyy')}
                 </div>
               )}
+              {todo.deadline && (
+                <div className="flex items-center gap-1 text-orange-600 bg-orange-50 px-2 py-1 rounded-full flex-shrink-0 whitespace-pre-wrap break-words max-w-xs">
+                  <Clock className="h-4 w-4" />
+                  <span className="font-medium">Deadline: {format(new Date(todo.deadline), 'MMM d, yyyy HH:mm')}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -307,54 +380,74 @@ const TodoListPage = () => {
   );
   };
 
-  const CompletedTaskCard = ({ todo }: { todo: TodoItem }) => (
-    <div className="bg-gradient-to-r from-green-50/50 to-white border border-green-100 rounded-xl p-4">
-      <div className="flex items-start justify-between gap-4 min-w-0">
-        <div className="flex items-start gap-3 flex-1 min-w-0">
-          <div className="mt-1 flex-shrink-0">
-            <CheckCircle2 className="h-5 w-5 text-green-600" />
-          </div>
-          <div className="flex-1 space-y-2 min-w-0">
-            <h3 className="font-medium text-gray-700 line-through break-words">
-              {todo.task}
-            </h3>
-            <div className="flex items-center gap-3 text-sm flex-wrap">
-              {todo.project_id && (
+  const CompletedTaskCard: React.FC<{ todo: TodoItem }> = ({ todo }) => {
+    // Determine if late
+    let isLate = false;
+    if (todo.deadline && todo.completed_at) {
+      isLate = new Date(todo.completed_at) > new Date(todo.deadline);
+    }
+    return (
+      <div className="bg-gradient-to-r from-green-50/50 to-white border border-green-100 rounded-xl p-4">
+        <div className="flex items-start justify-between gap-4 min-w-0">
+          <div className="flex items-start gap-3 flex-1 min-w-0">
+            <div className="mt-1 flex-shrink-0">
+              <CheckCircle2 className="h-5 w-5 text-green-600" />
+            </div>
+            <div className="flex-1 space-y-2 min-w-0">
+              <h3 className="font-medium text-gray-700 line-through break-words">
+                {todo.task}
+              </h3>
+              <div className="flex items-center gap-3 text-sm flex-wrap">
+                {todo.project_id && (
+                  <div className="flex items-center gap-1 text-gray-500 flex-shrink-0">
+                    <FolderOpen className="h-4 w-4" />
+                    <span className="truncate">{getProjectName(todo.project_id)}</span>
+                  </div>
+                )}
                 <div className="flex items-center gap-1 text-gray-500 flex-shrink-0">
-                  <FolderOpen className="h-4 w-4" />
-                  <span className="truncate">{getProjectName(todo.project_id)}</span>
+                  <Percent className="h-4 w-4" />
+                  <span>{todo.percentage}%</span>
                 </div>
-              )}
-              <div className="flex items-center gap-1 text-gray-500 flex-shrink-0">
-                <Percent className="h-4 w-4" />
-                <span>{todo.percentage}%</span>
+                {todo.assigned_to.length > 0 && (
+                  <div className="flex items-center gap-1 text-gray-500 bg-gray-100 px-2 py-1 rounded-full flex-shrink-0">
+                    <User className="h-4 w-4" />
+                    <span className="truncate max-w-32">{todo.assigned_to.join(', ')}</span>
+                  </div>
+                )}
+                {todo.deadline && (
+                  <div className="flex items-center gap-1 text-orange-600 bg-orange-50 px-2 py-1 rounded-full flex-shrink-0">
+                    <Clock className="h-4 w-4" />
+                    <span className="font-medium truncate max-w-40">Deadline: {format(new Date(todo.deadline), 'MMM d, yyyy HH:mm')}</span>
+                  </div>
+                )}
+                {todo.completed_by && (
+                  <div className="flex items-center gap-1 text-blue-600 bg-blue-50 px-2 py-1 rounded-full flex-shrink-0">
+                    <UserCheck className="h-4 w-4" />
+                    <span className="font-medium truncate max-w-40">Completed by: {todo.completed_by}</span>
+                  </div>
+                )}
+                {todo.completed_at && (
+                  <div className="text-gray-500 text-xs flex-shrink-0">
+                    Completed: {format(new Date(todo.completed_at), 'MMM d, yyyy HH:mm')}
+                  </div>
+                )}
               </div>
-              {todo.assigned_to.length > 0 && (
-                <div className="flex items-center gap-1 text-gray-500 bg-gray-100 px-2 py-1 rounded-full flex-shrink-0">
-                  <User className="h-4 w-4" />
-                  <span className="truncate max-w-32">{todo.assigned_to.join(', ')}</span>
-                </div>
-              )}
-              {todo.completed_by && (
-                <div className="flex items-center gap-1 text-blue-600 bg-blue-50 px-2 py-1 rounded-full flex-shrink-0">
-                  <UserCheck className="h-4 w-4" />
-                  <span className="font-medium truncate max-w-40">Completed by: {todo.completed_by}</span>
-                </div>
-              )}
-              {todo.completed_at && (
-                <div className="text-gray-500 text-xs flex-shrink-0">
-                  Completed: {format(new Date(todo.completed_at), 'MMM d, yyyy')}
-                </div>
-              )}
             </div>
           </div>
+          <div className="flex flex-col gap-2 items-end">
+            <Badge className="bg-green-100 text-green-800 border-green-200 flex-shrink-0">
+              Completed
+            </Badge>
+            {isLate && (
+              <Badge className="bg-red-100 text-red-800 border-red-200 flex-shrink-0 mt-1">
+                Late
+              </Badge>
+            )}
+          </div>
         </div>
-        <Badge className="bg-green-100 text-green-800 border-green-200 flex-shrink-0">
-          Completed
-        </Badge>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <MainLayout>
@@ -362,6 +455,16 @@ const TodoListPage = () => {
         title="My To-do List"
         subtitle={`Organize and track your project tasks with completion percentages and multi-user assignments. ${isAdminOrPresident ? 'As admin/president, you can see all pending tasks.' : 'You\'ll only see tasks assigned to you.'}`}
       >
+        <div className="flex justify-end mb-4 gap-2">
+          <Button variant="outline" onClick={() => setShowReport(true)}>
+            Report
+          </Button>
+          {isAdminOrPresident && (
+            <Button variant="outline" onClick={() => setShowGlobalReport(true)}>
+              Global Report
+            </Button>
+          )}
+        </div>
         {/* Create To-Do List Section */}
         {userProfile?.role !== 'manager' && (
           <Card className="mb-8 bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200">
@@ -470,6 +573,86 @@ const TodoListPage = () => {
           </div>
         )}
       </PageContainer>
+
+      {/* Report Dialog */}
+      <Dialog open={showReport} onOpenChange={setShowReport}>
+        <DialogContent className="max-w-md bg-white rounded-xl shadow-xl border border-gray-200">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold text-blue-900">
+              <UserCheck className="h-5 w-5 text-blue-600" />
+              My To-Do Completion Report
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="flex items-center gap-2 text-lg font-semibold">
+              <CheckCircle2 className="h-5 w-5 text-green-600" />
+              <span>Total completed by you:</span>
+              <span className="text-blue-700">{userCompletedTodos.length}</span>
+            </div>
+            <div className="flex items-center gap-2 text-base">
+              <Clock className="h-5 w-5 text-green-600" />
+              <span>Completed on time:</span>
+              <span className="text-green-700 font-semibold">{userCompletedOnTime.length}</span>
+            </div>
+            <div className="flex items-center gap-2 text-base">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+              <span>Completed late:</span>
+              <span className="text-red-700 font-semibold">{userCompletedLate.length}</span>
+            </div>
+            <div className="flex items-center gap-2 text-base">
+              <Clock className="h-5 w-5 text-indigo-500" />
+              <span>Total hours completed:</span>
+              <span className="text-indigo-700 font-semibold">{totalHoursCompleted.toFixed(2)} h</span>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowReport(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Global Report Dialog */}
+      <Dialog open={showGlobalReport} onOpenChange={setShowGlobalReport}>
+        <DialogContent className="max-w-2xl bg-white rounded-xl shadow-xl border border-gray-200">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold text-blue-900">
+              <UsersIcon className="h-5 w-5 text-blue-600" />
+              Global To-Do Completion Report
+            </DialogTitle>
+          </DialogHeader>
+          <div className="overflow-x-auto py-2">
+            <table className="min-w-full border text-sm rounded-xl overflow-hidden">
+              <thead>
+                <tr className="bg-blue-50 text-blue-900">
+                  <th className="px-4 py-2 border font-semibold">User</th>
+                  <th className="px-4 py-2 border font-semibold">Completed</th>
+                  <th className="px-4 py-2 border font-semibold">On Time</th>
+                  <th className="px-4 py-2 border font-semibold">Late</th>
+                  <th className="px-4 py-2 border font-semibold">Total Hours</th>
+                </tr>
+              </thead>
+              <tbody>
+                {userStats.length === 0 ? (
+                  <tr><td colSpan={5} className="text-center py-6 text-gray-500">No completed to-dos yet.</td></tr>
+                ) : (
+                  userStats.map((row) => (
+                    <tr key={row.user} className="even:bg-gray-50 hover:bg-blue-50 transition-colors">
+                      <td className="px-4 py-2 border font-medium text-blue-900 whitespace-nowrap">{row.user}</td>
+                      <td className="px-4 py-2 border text-center text-blue-700 font-semibold">{row.completed}</td>
+                      <td className="px-4 py-2 border text-center text-green-700 font-semibold">{row.onTime}</td>
+                      <td className="px-4 py-2 border text-center text-red-700 font-semibold">{row.late}</td>
+                      <td className="px-4 py-2 border text-center text-indigo-700 font-semibold">{row.totalHours.toFixed(2)} h</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowGlobalReport(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 };

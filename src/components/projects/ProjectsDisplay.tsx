@@ -83,10 +83,12 @@ export function ProjectsDisplay() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showProjectDetails, setShowProjectDetails] = useState(false);
   const [projectToEdit, setProjectToEdit] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [operationInProgress, setOperationInProgress] = useState<Set<string>>(new Set());
   const { userProfile } = useAuth();
+  const [allTodos, setAllTodos] = useState<any[]>([]);
 
   // Fetch projects from Supabase
   const fetchProjects = async () => {
@@ -163,6 +165,22 @@ export function ProjectsDisplay() {
   useEffect(() => {
     fetchProjects();
   }, []);
+
+  // Fetch all todos from localStorage when Project Details modal is opened
+  useEffect(() => {
+    if (selectedProject) {
+      const savedTodos = localStorage.getItem('todos');
+      if (savedTodos) {
+        try {
+          setAllTodos(JSON.parse(savedTodos));
+        } catch {
+          setAllTodos([]);
+        }
+      } else {
+        setAllTodos([]);
+      }
+    }
+  }, [selectedProject]);
 
   const handleCreateProject = () => {
     console.log("Creating new project...");
@@ -308,6 +326,7 @@ export function ProjectsDisplay() {
   const handleViewProject = (project: Project) => {
     console.log("Viewing project details:", project.name);
     setSelectedProject(project);
+    setShowProjectDetails(true);
     toast({
       title: "Project Details",
       description: `Viewing details for ${project.name}`,
@@ -803,60 +822,96 @@ export function ProjectsDisplay() {
                   {/* Progress Tracking */}
                   <div className="space-y-4">
                     <h2 className="text-xl font-semibold flex items-center gap-2">
-                      <PlayCircle className="h-5 w-5 text-green-600" />
+                      <BarChart3 className="h-5 w-5 text-green-600" />
                       Progress Tracking
                     </h2>
                     <Card>
-                      <CardContent className="p-6">
-                        <div className="space-y-6">
-                          <div>
-                            <div className="flex items-center justify-between mb-3">
-                              <span className="font-medium">Overall Progress</span>
-                              <span className="text-2xl font-bold text-blue-600">{selectedProject.progress}%</span>
-                            </div>
-                            <div className="w-full bg-gray-200 rounded-full h-4">
-                              <div 
-                                className="bg-gradient-to-r from-blue-500 to-purple-500 h-4 rounded-full transition-all duration-500 flex items-center justify-end pr-2"
-                                style={{ width: `${selectedProject.progress}%` }}
-                              >
-                                {selectedProject.progress > 15 && (
-                                  <span className="text-white text-xs font-medium">
-                                    {selectedProject.progress}%
-                                  </span>
-                                )}
-                              </div>
-                            </div>
+                      <CardHeader>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <BarChart3 className="h-5 w-5" />
+                          Progress Tracking
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">Project Duration</span>
+                            <span className="font-medium">
+                              {Math.ceil((new Date().getTime() - new Date(selectedProject.startDate).getTime()) / (1000 * 60 * 60 * 24))} days
+                            </span>
                           </div>
-
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">Team Size</span>
+                            <span className="font-medium">{selectedProject.teamMembers} members</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">Status</span>
+                            <Badge variant="outline" className={getStatusColor(selectedProject.status)}>
+                              {selectedProject.status.charAt(0).toUpperCase() + selectedProject.status.slice(1)}
+                            </Badge>
+                          </div>
+                          {/* Progress Breakdown Table */}
+                          <div className="mt-6">
+                            <h4 className="font-semibold text-base mb-2 flex items-center gap-2">
+                              <CheckCircle2 className="h-4 w-4 text-green-600" />
+                              Progress Breakdown
+                            </h4>
+                            {allTodos.filter(todo => todo.project_id === selectedProject.id && todo.completed).length === 0 ? (
+                              <div className="text-muted-foreground text-sm">No completed to-dos for this project yet.</div>
+                            ) : (
+                              <div className="overflow-x-auto">
+                                <table className="min-w-full border text-sm rounded-xl overflow-hidden">
+                                  <thead>
+                                    <tr className="bg-blue-50 text-blue-900">
+                                      <th className="px-4 py-2 border font-semibold">Task</th>
+                                      <th className="px-4 py-2 border font-semibold">Who</th>
+                                      <th className="px-4 py-2 border font-semibold">Progress Added (%)</th>
+                                      <th className="px-4 py-2 border font-semibold">Completed At</th>
+                                      <th className="px-4 py-2 border font-semibold">Status</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {allTodos.filter(todo => todo.project_id === selectedProject.id && todo.completed)
+                                      .sort((a, b) => new Date(a.completed_at).getTime() - new Date(b.completed_at).getTime())
+                                      .map((todo, idx) => {
+                                        const isLate = todo.deadline && todo.completed_at && new Date(todo.completed_at) > new Date(todo.deadline);
+                                        return (
+                                          <tr key={todo.id || idx} className="even:bg-gray-50">
+                                            <td className="px-4 py-2 border font-medium text-gray-900">{todo.task}</td>
+                                            <td className="px-4 py-2 border text-blue-700 font-semibold">{todo.completed_by || '—'}</td>
+                                            <td className="px-4 py-2 border text-center text-purple-700 font-semibold">{todo.percentage}</td>
+                                            <td className="px-4 py-2 border text-center text-gray-700">{todo.completed_at ? new Date(todo.completed_at).toLocaleString() : '—'}</td>
+                                            <td className="px-4 py-2 border text-center">
+                                              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${isLate ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                                                {isLate ? 'Late' : 'On Time'}
+                                              </span>
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                          {/* End Progress Breakdown Table */}
                           {selectedProject.budget && (
-                            <div>
-                              <div className="flex items-center justify-between mb-3">
-                                <span className="font-medium">Budget Utilization</span>
-                                <span className="text-lg font-semibold">
-                                  ${selectedProject.budget.used.toLocaleString()} / ${selectedProject.budget.total.toLocaleString()}
+                            <>
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm text-muted-foreground">Total Budget</span>
+                                <span className="font-medium">${selectedProject.budget.total.toLocaleString()}</span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm text-muted-foreground">Budget Used</span>
+                                <span className="font-medium">${selectedProject.budget.used.toLocaleString()}</span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm text-muted-foreground">Remaining</span>
+                                <span className="font-medium text-green-600">
+                                  ${(selectedProject.budget.total - selectedProject.budget.used).toLocaleString()}
                                 </span>
                               </div>
-                              <div className="w-full bg-gray-200 rounded-full h-4">
-                                <div 
-                                  className={`h-4 rounded-full transition-all duration-500 flex items-center justify-end pr-2 ${
-                                    selectedProject.budget.progress > 90 ? 'bg-gradient-to-r from-red-500 to-red-600' : 
-                                    selectedProject.budget.progress > 75 ? 'bg-gradient-to-r from-yellow-500 to-orange-500' : 
-                                    'bg-gradient-to-r from-green-500 to-green-600'
-                                  }`}
-                                  style={{ width: `${Math.min(selectedProject.budget.progress, 100)}%` }}
-                                >
-                                  {selectedProject.budget.progress > 15 && (
-                                    <span className="text-white text-xs font-medium">
-                                      {selectedProject.budget.progress.toFixed(1)}%
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex justify-between text-xs text-muted-foreground mt-2">
-                                <span>Used: ${selectedProject.budget.used.toLocaleString()}</span>
-                                <span>Remaining: ${(selectedProject.budget.total - selectedProject.budget.used).toLocaleString()}</span>
-                              </div>
-                            </div>
+                            </>
                           )}
                         </div>
                       </CardContent>

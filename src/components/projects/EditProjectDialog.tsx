@@ -31,6 +31,7 @@ interface Project {
   co_principal_investigator?: string;
   budget_founder?: string;
   organizations?: string[];
+  team?: string[]; // Added for team members array
 }
 
 interface EditProjectDialogProps {
@@ -47,7 +48,6 @@ export function EditProjectDialog({ open, onOpenChange, project, onProjectUpdate
     status: "draft" as Project["status"],
     startDate: "",
     endDate: "",
-    teamMembers: 1,
     progress: 0,
     budget: "",
     selectedTeamMembers: [] as string[],
@@ -108,12 +108,11 @@ export function EditProjectDialog({ open, onOpenChange, project, onProjectUpdate
           status: data.status as Project["status"],
           startDate: project.startDate,
           endDate: project.endDate || "",
-          teamMembers: project.teamMembers,
           progress: data.budget && typeof data.budget === 'object' && !Array.isArray(data.budget)
             ? (data.budget as any).progress || 0
             : project.progress,
           budget: budgetTotal.toString(),
-          selectedTeamMembers: [],
+          selectedTeamMembers: Array.isArray(data.team) ? data.team : [],
           principalInvestigator: data.principal_investigator || "",
           coPrincipalInvestigator: data.co_principal_investigator || "",
           budgetFounder: data.budget_founder || "",
@@ -192,7 +191,7 @@ export function EditProjectDialog({ open, onOpenChange, project, onProjectUpdate
       status: formData.status,
       startDate: formData.startDate,
       endDate: formData.endDate || undefined,
-      teamMembers: formData.selectedTeamMembers.length || formData.teamMembers,
+      teamMembers: formData.selectedTeamMembers.length,
       progress: formData.progress,
       budget: {
         total: budgetValue,
@@ -202,7 +201,8 @@ export function EditProjectDialog({ open, onOpenChange, project, onProjectUpdate
       principal_investigator: formData.principalInvestigator,
       co_principal_investigator: formData.coPrincipalInvestigator,
       budget_founder: formData.budgetFounder,
-      organizations: formData.organizations
+      organizations: formData.organizations,
+      team: formData.selectedTeamMembers,
     };
 
     console.log('Updated project for UI:', updatedProject);
@@ -452,15 +452,10 @@ export function EditProjectDialog({ open, onOpenChange, project, onProjectUpdate
           
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="teamMembers">Team Members (Manual Count)</Label>
-              <Input
-                id="teamMembers"
-                type="number"
-                min="1"
-                value={formData.teamMembers}
-                onChange={(e) => setFormData(prev => ({ ...prev, teamMembers: parseInt(e.target.value) || 1 }))}
-                disabled={updating}
-              />
+              <Label htmlFor="teamMembers">Team Members (Automatic Count)</Label>
+              <p className="text-sm text-muted-foreground">
+                {formData.selectedTeamMembers.length} team member(s) selected
+              </p>
             </div>
           </div>
           
@@ -487,9 +482,29 @@ export function EditProjectDialog({ open, onOpenChange, project, onProjectUpdate
                 </div>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">
-              {formData.selectedTeamMembers.length} team member(s) selected
-            </p>
+            {formData.selectedTeamMembers.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {formData.selectedTeamMembers.map((memberId, idx) => {
+                  const member = teamMembers.find(m => m.id === memberId);
+                  return (
+                    <div key={idx} className="flex items-center gap-1 bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">
+                      <span>{member ? `${member.name}${member.email ? ` (${member.email})` : ''}` : memberId}</span>
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({
+                          ...prev,
+                          selectedTeamMembers: prev.selectedTeamMembers.filter((_, i) => i !== idx)
+                        }))}
+                        className="ml-1 hover:text-red-600"
+                        aria-label={`Remove ${member ? member.name : memberId}`}
+                      >
+                        <svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
           
           <DialogFooter>

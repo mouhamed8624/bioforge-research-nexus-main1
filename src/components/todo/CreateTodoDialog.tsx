@@ -22,6 +22,7 @@ interface TodoItem {
   assigned_to: string[]; // Changed to array to support multiple users
   percentage: number;
   project_id?: string;
+  deadline?: string; // ISO string
 }
 
 interface Project {
@@ -53,11 +54,12 @@ interface TaskInput {
   task: string;
   percentage: number;
   assigned_to: string[]; // Changed to array to support multiple users
+  deadline?: string; // ISO string
 }
 
 export function CreateTodoDialog({ onTodoCreated }: CreateTodoDialogProps) {
   const [open, setOpen] = useState(false);
-  const [tasks, setTasks] = useState<TaskInput[]>([{ task: "", percentage: 0, assigned_to: [] }]);
+  const [tasks, setTasks] = useState<TaskInput[]>([{ task: "", percentage: 0, assigned_to: [], deadline: "" }]);
   const [selectedProject, setSelectedProject] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -164,7 +166,7 @@ export function CreateTodoDialog({ onTodoCreated }: CreateTodoDialogProps) {
   }, [open]);
 
   const addTask = () => {
-    setTasks([...tasks, { task: "", percentage: 0, assigned_to: undefined }]);
+    setTasks([...tasks, { task: "", percentage: 0, assigned_to: [], deadline: "" }]);
   };
 
   const removeTask = (index: number) => {
@@ -173,7 +175,7 @@ export function CreateTodoDialog({ onTodoCreated }: CreateTodoDialogProps) {
     }
   };
 
-  const updateTask = (index: number, field: 'task' | 'percentage' | 'assigned_to', value: string | number | string[]) => {
+  const updateTask = (index: number, field: 'task' | 'percentage' | 'assigned_to' | 'deadline', value: string | number | string[]) => {
     const newTasks = [...tasks];
     if (field === 'task') {
       newTasks[index].task = value as string;
@@ -199,6 +201,8 @@ export function CreateTodoDialog({ onTodoCreated }: CreateTodoDialogProps) {
       }
     } else if (field === 'assigned_to') {
       newTasks[index].assigned_to = value as string[];
+    } else if (field === 'deadline') {
+      newTasks[index].deadline = value as string;
     }
     setTasks(newTasks);
   };
@@ -264,13 +268,14 @@ export function CreateTodoDialog({ onTodoCreated }: CreateTodoDialogProps) {
       percentage: task.percentage,
       project_id: selectedProject,
       assigned_to: task.assigned_to,
+      deadline: task.deadline || undefined,
     }));
 
     // Call the callback to add todos
     onTodoCreated(newTodos);
 
     // Reset form and close dialog
-    setTasks([{ task: "", percentage: 0, assigned_to: [] }]);
+    setTasks([{ task: "", percentage: 0, assigned_to: [], deadline: "" }]);
     setSelectedProject("");
     setProjectProgress(0);
     setOpen(false);
@@ -361,6 +366,16 @@ export function CreateTodoDialog({ onTodoCreated }: CreateTodoDialogProps) {
                       </div>
                     </div>
                     
+                    <div>
+                      <Label className="text-xs text-gray-600 mb-1 block">Deadline (optional)</Label>
+                      <Input
+                        type="datetime-local"
+                        value={task.deadline || ""}
+                        onChange={e => updateTask(index, 'deadline', e.target.value)}
+                        className="w-full"
+                      />
+                    </div>
+
                     <div>
                       <Label className="text-xs text-gray-600 mb-1 block flex items-center gap-1">
                         <User className="h-3 w-3" />
