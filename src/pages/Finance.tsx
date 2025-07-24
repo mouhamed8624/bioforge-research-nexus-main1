@@ -9,16 +9,35 @@ import { SpendingTracker } from "@/components/finance/SpendingTracker";
 import { BudgetAllocationDialog } from "@/components/finance/BudgetAllocationDialog";
 import { BudgetVisualization } from "@/components/finance/BudgetVisualization";
 import { BudgetAnalysis } from "@/components/finance/BudgetAnalysis";
-import { DollarSign, TrendingUp, TrendingDown, PieChart, Calendar, Download, Settings, BarChart3, RefreshCw } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, PieChart, Calendar, Download, Settings, BarChart3, RefreshCw, ShoppingCart, Plane, Utensils, Home, Briefcase, Car, FileText, MoreHorizontal } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { getGlobalTodoStats, type UserTodoStats } from '@/services/todos/todoService';
+import { useEffect } from 'react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { format } from 'date-fns';
 
 const Finance = () => {
   const [selectedProject, setSelectedProject] = useState<string>("all");
   const [timeRange, setTimeRange] = useState("month");
   const [showAllocationDialog, setShowAllocationDialog] = useState(false);
   const [showVisualization, setShowVisualization] = useState(false);
+  const [userTodoStats, setUserTodoStats] = useState<UserTodoStats[]>([]);
+  const [showAllTransactions, setShowAllTransactions] = useState(false);
+
+  useEffect(() => {
+    async function fetchStats() {
+      try {
+        const stats = await getGlobalTodoStats();
+        setUserTodoStats(stats);
+      } catch (e) {
+        console.error('Error fetching user todo stats for finance:', e);
+      }
+    }
+    fetchStats();
+  }, []);
 
   // Fetch projects from database
   const { data: projects = [], refetch: refetchProjects } = useQuery({
@@ -170,6 +189,18 @@ const Finance = () => {
     if (percentage >= 90) return "destructive";
     if (percentage >= 75) return "secondary";
     return "default";
+  };
+
+  const categoryIcon = (category: string) => {
+    switch (category.toLowerCase()) {
+      case 'supplies': return <ShoppingCart className="h-4 w-4 text-cyan-500" />;
+      case 'travel': return <Plane className="h-4 w-4 text-cyan-500" />;
+      case 'food': return <Utensils className="h-4 w-4 text-cyan-500" />;
+      case 'office': return <Briefcase className="h-4 w-4 text-cyan-500" />;
+      case 'home': return <Home className="h-4 w-4 text-cyan-500" />;
+      case 'car': return <Car className="h-4 w-4 text-cyan-500" />;
+      default: return <FileText className="h-4 w-4 text-cyan-400" />;
+    }
   };
 
   const projectsForSelect = [
@@ -350,7 +381,7 @@ const Finance = () => {
 
               <div className="p-6">
                 <TabsContent value="overview" className="space-y-6 mt-0">
-                  <div className="grid gap-6 md:grid-cols-2">
+                  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
                     <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-orange-800">
@@ -415,25 +446,114 @@ const Finance = () => {
                               <p>No recent transactions</p>
                             </div>
                           ) : (
-                            recentTransactions.map((transaction, index) => (
-                              <div key={index} className="flex items-center justify-between p-3 bg-white rounded-lg border border-cyan-100 hover:shadow-md transition-shadow">
-                                <div className="space-y-1">
-                                  <p className="text-sm font-medium text-gray-800">{transaction.description}</p>
-                                  <div className="flex items-center gap-2">
-                                    <p className="text-xs text-muted-foreground">{transaction.date}</p>
-                                    <Badge variant="outline" className="text-xs">{transaction.category}</Badge>
+                            <>
+                              <TooltipProvider>
+                                {recentTransactions.map((transaction, index) => (
+                                  <div key={index} className="flex flex-col">
+                                    <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-cyan-100 hover:shadow-md transition-shadow group min-w-0 flex-wrap">
+                                      <div className="flex items-center gap-3 min-w-0 flex-wrap">
+                                        {categoryIcon(transaction.category)}
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <p className="text-sm font-medium text-gray-800 truncate max-w-[160px] cursor-pointer">
+                                              {transaction.description}
+                                            </p>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            <span>{transaction.description}</span>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                        <div className="flex items-center gap-2">
+                                          <p className="text-xs text-muted-foreground">{format(new Date(transaction.date), 'MMM d, yyyy')}</p>
+                                          <Badge variant="outline" className="text-xs">{transaction.category}</Badge>
+                                        </div>
+                                      </div>
+                                      <span className={`font-bold text-lg ${transaction.amount > 0 ? 'text-green-600' : 'text-red-600'}`}
+                                        >{transaction.amount > 0 ? '+' : '-'}${Math.abs(transaction.amount).toLocaleString()}</span>
+                                    </div>
+                                    {index < recentTransactions.length - 1 && <div className="h-px bg-cyan-100 my-2" />}
                                   </div>
+                                ))}
+                              </TooltipProvider>
+                              {spendingData.length > 5 && (
+                                <div className="flex justify-center mt-4">
+                                  <Button variant="outline" size="sm" onClick={() => setShowAllTransactions(true)}>
+                                    <MoreHorizontal className="h-4 w-4 mr-1" /> View All
+                                  </Button>
                                 </div>
-                                <span className={`font-bold text-lg ${transaction.amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                  {transaction.amount > 0 ? '+' : ''}${Math.abs(transaction.amount).toLocaleString()}
-                                </span>
-                              </div>
-                            ))
+                              )}
+                              <Dialog open={showAllTransactions} onOpenChange={setShowAllTransactions}>
+                                <DialogContent className="max-w-2xl">
+                                  <DialogHeader>
+                                    <DialogTitle>All Transactions</DialogTitle>
+                                  </DialogHeader>
+                                  <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+                                    {spendingData.map((transaction, index) => (
+                                      <div key={index} className="flex flex-col">
+                                        <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-cyan-100 hover:shadow-md transition-shadow group min-w-0 flex-wrap">
+                                          <div className="flex items-center gap-3 min-w-0 flex-wrap">
+                                            {categoryIcon(transaction.category)}
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <p className="text-sm font-medium text-gray-800 truncate max-w-[200px] cursor-pointer">
+                                                  {transaction.description}
+                                                </p>
+                                              </TooltipTrigger>
+                                              <TooltipContent>
+                                                <span>{transaction.description}</span>
+                                              </TooltipContent>
+                                            </Tooltip>
+                                            <div className="flex items-center gap-2">
+                                              <p className="text-xs text-muted-foreground">{format(new Date(transaction.date), 'MMM d, yyyy')}</p>
+                                              <Badge variant="outline" className="text-xs">{transaction.category}</Badge>
+                                            </div>
+                                          </div>
+                                          <span className={`font-bold text-lg ${Number(transaction.amount) > 0 ? 'text-green-600' : 'text-red-600'}`}
+                                            >{Number(transaction.amount) > 0 ? '+' : '-'}${Math.abs(Number(transaction.amount)).toLocaleString()}</span>
+                                        </div>
+                                        {index < spendingData.length - 1 && <div className="h-px bg-cyan-100 my-2" />}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+                            </>
                           )}
                         </div>
                       </CardContent>
                     </Card>
                   </div>
+                  {/* User Completed Task Hours Table */}
+                  <Card className="bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200">
+                    <CardHeader>
+                      <CardTitle className="text-gray-800 text-lg">User Completed Task Hours</CardTitle>
+                      <CardDescription className="text-gray-600">Total hours of completed tasks per user</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full border text-sm rounded-xl overflow-hidden">
+                          <thead>
+                            <tr className="bg-gray-100 text-gray-900">
+                              <th className="px-4 py-2 border font-semibold">User</th>
+                              <th className="px-4 py-2 border font-semibold">Total Hours</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {userTodoStats.length === 0 ? (
+                              <tr><td colSpan={2} className="text-center py-6 text-gray-500">No completed tasks yet.</td></tr>
+                            ) : (
+                              userTodoStats.map((row) => (
+                                <tr key={row.user} className="even:bg-gray-50">
+                                  <td className="px-4 py-2 border font-medium text-gray-900 whitespace-nowrap">{row.user}</td>
+                                  <td className="px-4 py-2 border text-center text-indigo-700 font-semibold">{row.totalHours.toFixed(2)} h</td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </TabsContent>
 
                 <TabsContent value="spending" className="mt-0">

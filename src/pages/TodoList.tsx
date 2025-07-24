@@ -309,13 +309,11 @@ const TodoListPage = () => {
 
   // Function to refresh global stats
   const refreshGlobalStats = async () => {
-    if (userProfile?.role === 'admin' || userProfile?.role === 'president') {
-      try {
-        const stats = await getGlobalTodoStats();
-        setGlobalStats(stats);
-      } catch (error) {
-        console.error('Error loading global stats:', error);
-      }
+    try {
+      const stats = await getGlobalTodoStats();
+      setGlobalStats(stats);
+    } catch (error) {
+      console.error('Error loading global stats:', error);
     }
   };
 
@@ -327,13 +325,11 @@ const TodoListPage = () => {
     }
   }, [userProfile?.email]);
 
-  // Load global stats for admin/president - optimized
+  // Load global stats for all users - optimized
   useEffect(() => {
-    if (userProfile?.role === 'admin' || userProfile?.role === 'president') {
-      // Load stats in background without blocking UI
-      refreshGlobalStats();
-    }
-  }, [userProfile?.role, todos]); // Re-run when todos change
+    // Load stats in background without blocking UI
+    refreshGlobalStats();
+  }, [todos]); // Re-run when todos change
 
   // Pagination state for completed tasks
   const [completedPage, setCompletedPage] = useState(1);

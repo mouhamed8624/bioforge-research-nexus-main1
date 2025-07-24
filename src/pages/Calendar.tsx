@@ -21,11 +21,14 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { API_URL } from "@/config/apiConfig";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Link as LinkIcon } from 'lucide-react';
 
 export default function CalendarPage() {
   const [date, setDate] = useState<Date>(new Date());
   const [isAddEventOpen, setIsAddEventOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
   const navigate = useNavigate();
   
   const formattedDate = format(date, "EEEE, MMMM d, yyyy");
@@ -216,8 +219,59 @@ export default function CalendarPage() {
                 <PlusIcon className="mr-1 h-4 w-4" />
                 Add Event
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowLinkDialog(true)}
+                className="hover:bg-purple-50 dark:hover:bg-purple-900/20 border-purple-200"
+              >
+                <LinkIcon className="mr-1 h-4 w-4 text-purple-500" />
+                Link My Calendar
+              </Button>
             </div>
           </div>
+          {/* Link My Calendar Dialog */}
+          <Dialog open={showLinkDialog} onOpenChange={setShowLinkDialog}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Link My Calendar</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <Button
+                  variant="outline"
+                  className="w-full flex items-center justify-start gap-2"
+                  onClick={() => { handleSubscribe('google'); setShowLinkDialog(false); }}
+                >
+                  <ExternalLink className="h-4 w-4 text-blue-600" />
+                  Connect to Google Calendar
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full flex items-center justify-start gap-2"
+                  onClick={() => { handleSubscribe('outlook'); setShowLinkDialog(false); }}
+                >
+                  <ExternalLink className="h-4 w-4 text-blue-700" />
+                  Connect to Outlook Calendar
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full flex items-center justify-start gap-2"
+                  onClick={() => { handleSubscribe('apple'); setShowLinkDialog(false); }}
+                >
+                  <CalendarIconOutline className="h-4 w-4 text-gray-700" />
+                  Connect to Apple Calendar
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full flex items-center justify-start gap-2"
+                  onClick={() => { copySubscriptionUrl('ics'); setShowLinkDialog(false); }}
+                >
+                  <LinkIcon className="h-4 w-4 text-purple-500" />
+                  Copy ICS Link
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {/* Main content area */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -231,36 +285,7 @@ export default function CalendarPage() {
                   </CardTitle>
                   <CardDescription className="mt-1">Select a date to view events</CardDescription>
                 </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="hover:bg-purple-50 dark:hover:bg-purple-900/20 border-purple-200"
-                    >
-                      <Link className="mr-1 h-4 w-4 text-purple-500" />
-                      Subscribe
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56 bg-white/95 backdrop-blur-sm">
-                    <DropdownMenuItem onClick={() => handleSubscribe('google')}>
-                      <ExternalLink className="mr-2 h-4 w-4" />
-                      Google Calendar
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleSubscribe('outlook')}>
-                      <ExternalLink className="mr-2 h-4 w-4" />
-                      Outlook Calendar
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleSubscribe('apple')}>
-                      <CalendarIconOutline className="mr-2 h-4 w-4" />
-                      Apple Calendar
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => copySubscriptionUrl('ics')}>
-                      <Link className="mr-2 h-4 w-4" />
-                      Copy ICS Link
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                {/* Removed Subscribe button and dropdown */}
               </CardHeader>
               <CardContent className="pt-6">
                 <div className="max-w-full overflow-auto">
