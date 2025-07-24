@@ -16,14 +16,7 @@ import { Plus, X, AlertCircle, User } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
-interface TodoItem {
-  task: string;
-  completed: boolean;
-  assigned_to: string[]; // Changed to array to support multiple users
-  percentage: number;
-  project_id?: string;
-  deadline?: string; // ISO string
-}
+import { type TodoItem } from "@/services/todos/todoService";
 
 interface Project {
   id: string;
@@ -47,7 +40,7 @@ interface ProjectBudget {
 }
 
 interface CreateTodoDialogProps {
-  onTodoCreated: (todos: TodoItem[]) => void;
+  onTodoCreated: (todos: Omit<TodoItem, 'id' | 'created_at' | 'updated_at' | 'completed_at' | 'completed_by'>[]) => void;
 }
 
 interface TaskInput {
@@ -262,7 +255,7 @@ export function CreateTodoDialog({ onTodoCreated }: CreateTodoDialogProps) {
     setLoading(true);
     
     // Create new todos
-    const newTodos: TodoItem[] = validTasks.map(task => ({
+    const newTodos: Omit<TodoItem, 'id' | 'created_at' | 'updated_at' | 'completed_at' | 'completed_by'>[] = validTasks.map(task => ({
       task: task.task.trim(),
       completed: false,
       percentage: task.percentage,

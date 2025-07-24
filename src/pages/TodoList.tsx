@@ -12,20 +12,18 @@ import { Clock, CheckCircle2, Circle, User, FolderOpen, Percent, UserCheck, User
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { 
+  fetchTodos, 
+  createTodo, 
+  markTodoAsCompleted, 
+  getUserTodoStats, 
+  getGlobalTodoStats,
+  migrateTodosFromLocalStorage,
+  type TodoItem as DatabaseTodoItem 
+} from "@/services/todos/todoService";
 
-// Define TodoItem type locally
-interface TodoItem {
-  id?: string;
-  task: string;
-  completed: boolean;
-  assigned_to: string[]; // Changed to array to support multiple users
-  completed_at?: string;
-  completed_by?: string; // New field to track who completed the task
-  created_at?: string;
-  percentage: number;
-  project_id?: string;
-  deadline?: string; // ISO string
-}
+// Use the database TodoItem type
+type TodoItem = DatabaseTodoItem;
 
 interface Project {
   id: string;
@@ -72,26 +70,35 @@ const TodoListPage = () => {
     }
   };
 
-  // Initialize with empty todos or load from localStorage
+  // Initialize with todos from database
   useEffect(() => {
-    const savedTodos = localStorage.getItem('todos');
-    if (savedTodos) {
+    const loadTodos = async () => {
       try {
-        setTodos(JSON.parse(savedTodos));
+        setLoading(true);
+        
+        // First try to migrate any existing localStorage todos
+        await migrateTodosFromLocalStorage();
+        
+        // Then fetch todos from database
+        const todosData = await fetchTodos();
+        setTodos(todosData);
+        
+        // Fetch projects for display names
+        await fetchProjects();
       } catch (error) {
-        console.error('Error loading todos from localStorage:', error);
-        setTodos([]);
+        console.error('Error loading todos:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load todos from database.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
       }
-    }
-    
-    // Fetch projects for display names
-    fetchProjects();
-  }, []);
+    };
 
-  // Save todos to localStorage whenever todos change
-  useEffect(() => {
-    localStorage.setItem('todos', JSON.stringify(todos));
-  }, [todos]);
+    loadTodos();
+  }, []);
 
   // Fetch all users from profiles table for global report
   useEffect(() => {
@@ -170,19 +177,39 @@ const TodoListPage = () => {
     }
   };
 
-  const addTodos = (newTodos: TodoItem[]) => {
-    const todosWithIds = newTodos.map(todo => ({
-      ...todo,
-      id: `todo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      created_at: new Date().toISOString(),
-    }));
-    
-    setTodos(prevTodos => [...prevTodos, ...todosWithIds]);
-    
-    toast({
-      title: "Success",
-      description: `Added ${newTodos.length} task(s) to your todo list.`,
-    });
+  const addTodos = async (newTodos: Omit<TodoItem, 'id' | 'created_at' | 'updated_at'>[]) => {
+    try {
+      const createdTodos: TodoItem[] = [];
+      
+      for (const todo of newTodos) {
+        const createdTodo = await createTodo({
+          task: todo.task,
+          assigned_to: todo.assigned_to,
+          percentage: todo.percentage,
+          project_id: todo.project_id,
+          deadline: todo.deadline,
+        });
+        createdTodos.push(createdTodo);
+      }
+      
+      setTodos(prevTodos => [...prevTodos, ...createdTodos]);
+      
+      // Refresh stats after adding new todos
+      await refreshUserStats();
+      await refreshGlobalStats();
+      
+      toast({
+        title: "Success",
+        description: `Added ${newTodos.length} task(s) to your todo list.`,
+      });
+    } catch (error) {
+      console.error('Error adding todos:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add todos to database.",
+        variant: "destructive",
+      });
+    }
   };
 
   const markAsCompleted = async (todoId: string | undefined) => {
@@ -196,7 +223,6 @@ const TodoListPage = () => {
     }
 
     try {
-      const completionTime = new Date().toISOString();
       const completedBy = userProfile?.email || 'Unknown User';
       
       // Find the todo to get its project and percentage
@@ -205,17 +231,13 @@ const TodoListPage = () => {
         throw new Error("Task not found");
       }
 
+      // Mark as completed in database
+      const updatedTodo = await markTodoAsCompleted(todoId, completedBy);
+
       // Update local state
       setTodos(prevTodos =>
         prevTodos.map(todo =>
-          todo.id === todoId
-            ? { 
-                ...todo, 
-                completed: true, 
-                completed_at: completionTime,
-                completed_by: completedBy
-              }
-            : todo
+          todo.id === todoId ? updatedTodo : todo
         )
       );
 
@@ -223,6 +245,10 @@ const TodoListPage = () => {
       if (todoToComplete.project_id) {
         await updateProjectProgress(todoToComplete.project_id, todoToComplete.percentage);
       }
+
+      // Refresh stats after completion
+      await refreshUserStats();
+      await refreshGlobalStats();
 
       toast({
         title: "Success",
@@ -252,55 +278,48 @@ const TodoListPage = () => {
   );
   const completedTodos = todos.filter(todo => todo.completed);
 
-  // Report stats for current user
-  const userCompletedTodos = todos.filter(
-    (todo) => todo.completed && todo.completed_by === userProfile?.email
-  );
-  const userCompletedOnTime = userCompletedTodos.filter(
-    (todo) => todo.deadline && todo.completed_at && new Date(todo.completed_at) <= new Date(todo.deadline)
-  );
-  const userCompletedLate = userCompletedTodos.filter(
-    (todo) => todo.deadline && todo.completed_at && new Date(todo.completed_at) > new Date(todo.deadline)
-  );
-  // Total hours completed: sum of (deadline - created_at) for each completed to-do (in hours, rounded to 2 decimals)
-  const totalHoursCompleted = userCompletedTodos.reduce((sum, todo) => {
-    if (todo.deadline && todo.created_at) {
-      const diffMs = new Date(todo.deadline).getTime() - new Date(todo.created_at).getTime();
-      return sum + Math.max(0, diffMs / (1000 * 60 * 60));
-    }
-    return sum;
-  }, 0);
+  // Report stats for current user - use database service
+  const [userStats, setUserStats] = useState<{ completed: number; onTime: number; late: number; totalHours: number }>({
+    completed: 0,
+    onTime: 0,
+    late: 0,
+    totalHours: 0
+  });
+  const [globalStats, setGlobalStats] = useState<Array<{ user: string; completed: number; onTime: number; late: number; totalHours: number }>>([]);
 
-  // Compute global report for all users (president/admin only)
-  const userStatsMap: Record<string, {
-    completed: number;
-    onTime: number;
-    late: number;
-    totalHours: number;
-  }> = {};
-  todos.forEach(todo => {
-    if (todo.completed && todo.completed_by) {
-      if (!userStatsMap[todo.completed_by]) {
-        userStatsMap[todo.completed_by] = { completed: 0, onTime: 0, late: 0, totalHours: 0 };
-      }
-      userStatsMap[todo.completed_by].completed++;
-      if (todo.deadline && todo.completed_at) {
-        const completedOnTime = new Date(todo.completed_at) <= new Date(todo.deadline);
-        if (completedOnTime) userStatsMap[todo.completed_by].onTime++;
-        else userStatsMap[todo.completed_by].late++;
-        if (todo.created_at) {
-          const diffMs = new Date(todo.deadline).getTime() - new Date(todo.created_at).getTime();
-          userStatsMap[todo.completed_by].totalHours += Math.max(0, diffMs / (1000 * 60 * 60));
-        }
+  // Function to refresh user stats
+  const refreshUserStats = async () => {
+    if (userProfile?.email) {
+      try {
+        const stats = await getUserTodoStats(userProfile.email);
+        setUserStats(stats);
+      } catch (error) {
+        console.error('Error loading user stats:', error);
       }
     }
-  });
-  // Merge all users with stats, show zeroes for users with no completed to-dos
-  const userStats = allUsers.map(user => {
-    const email = user.email || '(no email)';
-    const stats = userStatsMap[email] || { completed: 0, onTime: 0, late: 0, totalHours: 0 };
-    return { user: email, ...stats };
-  });
+  };
+
+  // Function to refresh global stats
+  const refreshGlobalStats = async () => {
+    if (userProfile?.role === 'admin' || userProfile?.role === 'president') {
+      try {
+        const stats = await getGlobalTodoStats();
+        setGlobalStats(stats);
+      } catch (error) {
+        console.error('Error loading global stats:', error);
+      }
+    }
+  };
+
+  // Load user stats when component mounts or user changes
+  useEffect(() => {
+    refreshUserStats();
+  }, [userProfile?.email]);
+
+  // Load global stats for admin/president
+  useEffect(() => {
+    refreshGlobalStats();
+  }, [userProfile?.role, todos]); // Re-run when todos change
 
   const PendingTaskCard: React.FC<{ todo: TodoItem }> = ({ todo }) => {
     const isAssignedToCurrentUser = todo.assigned_to.includes(userProfile?.email || '');
@@ -464,6 +483,18 @@ const TodoListPage = () => {
               Global Report
             </Button>
           )}
+          <Button 
+            variant="outline" 
+            onClick={async () => {
+              console.log('Manual refresh triggered');
+              await refreshUserStats();
+              await refreshGlobalStats();
+              console.log('Current user stats:', userStats);
+              console.log('Current global stats:', globalStats);
+            }}
+          >
+            Refresh Stats
+          </Button>
         </div>
         {/* Create To-Do List Section */}
         {userProfile?.role !== 'manager' && (
@@ -587,22 +618,22 @@ const TodoListPage = () => {
             <div className="flex items-center gap-2 text-lg font-semibold">
               <CheckCircle2 className="h-5 w-5 text-green-600" />
               <span>Total completed by you:</span>
-              <span className="text-blue-700">{userCompletedTodos.length}</span>
+              <span className="text-blue-700">{userStats.completed}</span>
             </div>
             <div className="flex items-center gap-2 text-base">
               <Clock className="h-5 w-5 text-green-600" />
               <span>Completed on time:</span>
-              <span className="text-green-700 font-semibold">{userCompletedOnTime.length}</span>
+              <span className="text-green-700 font-semibold">{userStats.onTime}</span>
             </div>
             <div className="flex items-center gap-2 text-base">
               <AlertTriangle className="h-5 w-5 text-red-500" />
               <span>Completed late:</span>
-              <span className="text-red-700 font-semibold">{userCompletedLate.length}</span>
+              <span className="text-red-700 font-semibold">{userStats.late}</span>
             </div>
             <div className="flex items-center gap-2 text-base">
               <Clock className="h-5 w-5 text-indigo-500" />
               <span>Total hours completed:</span>
-              <span className="text-indigo-700 font-semibold">{totalHoursCompleted.toFixed(2)} h</span>
+              <span className="text-indigo-700 font-semibold">{userStats.totalHours.toFixed(2)} h</span>
             </div>
           </div>
           <DialogFooter>
@@ -632,10 +663,10 @@ const TodoListPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {userStats.length === 0 ? (
+                {globalStats.length === 0 ? (
                   <tr><td colSpan={5} className="text-center py-6 text-gray-500">No completed to-dos yet.</td></tr>
                 ) : (
-                  userStats.map((row) => (
+                  globalStats.map((row) => (
                     <tr key={row.user} className="even:bg-gray-50 hover:bg-blue-50 transition-colors">
                       <td className="px-4 py-2 border font-medium text-blue-900 whitespace-nowrap">{row.user}</td>
                       <td className="px-4 py-2 border text-center text-blue-700 font-semibold">{row.completed}</td>

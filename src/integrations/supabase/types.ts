@@ -762,6 +762,56 @@ export type Database = {
         }
         Relationships: []
       }
+      todos: {
+        Row: {
+          id: string
+          task: string
+          completed: boolean
+          assigned_to: string[]
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          percentage: number
+          project_id: string | null
+          deadline: string | null
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          task: string
+          completed?: boolean
+          assigned_to?: string[]
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          percentage?: number
+          project_id?: string | null
+          deadline?: string | null
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          task?: string
+          completed?: boolean
+          assigned_to?: string[]
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          percentage?: number
+          project_id?: string | null
+          deadline?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "todos_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       team_members: {
         Row: {
           created_at: string | null
