@@ -99,8 +99,8 @@ export function AddEquipmentDialog({ open, onClose, onAdd }: AddEquipmentDialogP
     }}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Add Laboratory Equipment</DialogTitle>
-          <DialogDescription>Add details about laboratory equipment or machinery</DialogDescription>
+          <DialogTitle>Ajouter un équipement d'échantillon</DialogTitle>
+          <DialogDescription>Ajouter des détails sur l'équipement d'échantillon ou la machine</DialogDescription>
         </DialogHeader>
         
         <Form {...form}>

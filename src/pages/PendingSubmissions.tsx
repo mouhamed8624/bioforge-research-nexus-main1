@@ -164,7 +164,7 @@ const PendingSubmissions = () => {
       <MainLayout>
         <PageContainer
           title="Pending Submissions"
-          subtitle="Review and approve laboratory test submissions"
+          subtitle="Review and approve échantillon test submissions"
         >
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
@@ -178,13 +178,13 @@ const PendingSubmissions = () => {
     <MainLayout>
       <PageContainer
         title="Pending Submissions"
-        subtitle="Review and approve laboratory test submissions"
+        subtitle="Review and approve échantillon test submissions"
       >
         <Card>
           <CardHeader>
-            <CardTitle>Laboratory Test Submissions</CardTitle>
+            <CardTitle>Échantillon Test Submissions</CardTitle>
             <CardDescription>
-              Review and manage laboratory test results waiting for approval
+              Review and manage échantillon test results waiting for approval
             </CardDescription>
           </CardHeader>
           <CardContent>

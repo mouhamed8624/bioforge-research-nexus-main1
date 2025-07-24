@@ -132,7 +132,7 @@ const NAV_ITEMS = [
     ]
   },
   {
-    section: "Laboratory",
+    section: "Échantillon",
     links: [
       { to: "/bio-banks", label: "Bio Banks", icon: <Beaker />, key: "bio-banks" },
       { to: "/dbs", label: "DBS", icon: <Droplets />, key: "dbs" },
