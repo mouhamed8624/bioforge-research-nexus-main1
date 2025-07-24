@@ -98,11 +98,11 @@ const Dashboard = () => {
     enabled: userRole === 'financial', // Only run for financial role
   });
 
-  // Fetch pending todo count from localStorage
+  // Fetch pending todo count from localStorage - optimized
   useEffect(() => {
     const fetchPendingTodoCount = () => {
       if (isAdminOrPresident) {
-        setIsStatsLoading(prev => ({ ...prev, todos: true }));
+        // Don't show loading for todo count updates
         try {
           const savedTodos = localStorage.getItem('todos');
           if (savedTodos) {
@@ -115,16 +115,14 @@ const Dashboard = () => {
         } catch (err) {
           console.error("Error fetching pending todos:", err);
           setPendingTodoCount(0);
-        } finally {
-          setIsStatsLoading(prev => ({ ...prev, todos: false }));
         }
       }
     };
 
     fetchPendingTodoCount();
     
-    // Set up an interval to refresh the count every 5 seconds
-    const interval = setInterval(fetchPendingTodoCount, 5000);
+    // Set up an interval to refresh the count every 10 seconds (less frequent)
+    const interval = setInterval(fetchPendingTodoCount, 10000);
     
     return () => clearInterval(interval);
   }, [isAdminOrPresident]);
@@ -211,11 +209,15 @@ const Dashboard = () => {
     fetchCounts();
   }, [isAdminOrPresident]);
 
-  // Fetch patient count
+  // Fetch patient count - optimized
   useEffect(() => {
     const fetchPatientCount = async () => {
-      setPatientsLoading(true);
-      setIsStatsLoading(prev => ({ ...prev, patients: true }));
+      // Only show loading on initial load
+      if (patientCount === null) {
+        setPatientsLoading(true);
+        setIsStatsLoading(prev => ({ ...prev, patients: true }));
+      }
+      
       try {
         const { count, error } = await supabase
           .from('patients')

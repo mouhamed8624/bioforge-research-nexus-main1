@@ -775,6 +775,7 @@ export type Database = {
           project_id: string | null
           deadline: string | null
           updated_at: string
+          hours?: number | null
         }
         Insert: {
           id?: string
@@ -788,6 +789,7 @@ export type Database = {
           project_id?: string | null
           deadline?: string | null
           updated_at?: string
+          hours?: number | null
         }
         Update: {
           id?: string
@@ -801,6 +803,7 @@ export type Database = {
           project_id?: string | null
           deadline?: string | null
           updated_at?: string
+          hours?: number | null
         }
         Relationships: [
           {

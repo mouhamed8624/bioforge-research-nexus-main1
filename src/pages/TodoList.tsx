@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { ProgressiveLoading, ContentLoader } from "@/components/ui/progressive-loading";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +20,7 @@ import {
   getUserTodoStats, 
   getGlobalTodoStats,
   migrateTodosFromLocalStorage,
+  fixCompletedTodos,
   type TodoItem as DatabaseTodoItem 
 } from "@/services/todos/todoService";
 
@@ -70,28 +72,34 @@ const TodoListPage = () => {
     }
   };
 
-  // Initialize with todos from database
+  // Initialize with todos from database - optimized loading
   useEffect(() => {
     const loadTodos = async () => {
       try {
-        setLoading(true);
+        // Only show loading if we don't have any todos yet
+        if (todos.length === 0) {
+          setLoading(true);
+        }
         
-        // First try to migrate any existing localStorage todos
-        await migrateTodosFromLocalStorage();
+        // Run migrations and data fetching in parallel for faster loading
+        const [todosData] = await Promise.all([
+          fetchTodos(),
+          migrateTodosFromLocalStorage(), // Run in background
+          fetchProjects(), // Run in background
+          fixCompletedTodos() // Fix any completed todos without timestamps
+        ]);
         
-        // Then fetch todos from database
-        const todosData = await fetchTodos();
         setTodos(todosData);
-        
-        // Fetch projects for display names
-        await fetchProjects();
       } catch (error) {
         console.error('Error loading todos:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load todos from database.",
-          variant: "destructive",
-        });
+        // Don't show error toast for initial load, just log it
+        if (todos.length > 0) {
+          toast({
+            title: "Error",
+            description: "Failed to refresh todos from database.",
+            variant: "destructive",
+          });
+        }
       } finally {
         setLoading(false);
       }
@@ -311,15 +319,30 @@ const TodoListPage = () => {
     }
   };
 
-  // Load user stats when component mounts or user changes
+  // Load user stats when component mounts or user changes - optimized
   useEffect(() => {
-    refreshUserStats();
+    if (userProfile?.email) {
+      // Load stats in background without blocking UI
+      refreshUserStats();
+    }
   }, [userProfile?.email]);
 
-  // Load global stats for admin/president
+  // Load global stats for admin/president - optimized
   useEffect(() => {
-    refreshGlobalStats();
+    if (userProfile?.role === 'admin' || userProfile?.role === 'president') {
+      // Load stats in background without blocking UI
+      refreshGlobalStats();
+    }
   }, [userProfile?.role, todos]); // Re-run when todos change
+
+  // Pagination state for completed tasks
+  const [completedPage, setCompletedPage] = useState(1);
+  const completedPerPage = 5;
+  const totalCompletedPages = Math.ceil(completedTodos.length / completedPerPage);
+  const paginatedCompletedTodos = completedTodos.slice(
+    (completedPage - 1) * completedPerPage,
+    completedPage * completedPerPage
+  );
 
   const PendingTaskCard: React.FC<{ todo: TodoItem }> = ({ todo }) => {
     const isAssignedToCurrentUser = todo.assigned_to.includes(userProfile?.email || '');
@@ -471,7 +494,7 @@ const TodoListPage = () => {
   return (
     <MainLayout>
       <PageContainer
-        title="My To-do List"
+        title="Project to-do list"
         subtitle={`Organize and track your project tasks with completion percentages and multi-user assignments. ${isAdminOrPresident ? 'As admin/president, you can see all pending tasks.' : 'You\'ll only see tasks assigned to you.'}`}
       >
         <div className="flex justify-end mb-4 gap-2">
@@ -483,18 +506,6 @@ const TodoListPage = () => {
               Global Report
             </Button>
           )}
-          <Button 
-            variant="outline" 
-            onClick={async () => {
-              console.log('Manual refresh triggered');
-              await refreshUserStats();
-              await refreshGlobalStats();
-              console.log('Current user stats:', userStats);
-              console.log('Current global stats:', globalStats);
-            }}
-          >
-            Refresh Stats
-          </Button>
         </div>
         {/* Create To-Do List Section */}
         {userProfile?.role !== 'manager' && (
@@ -511,11 +522,11 @@ const TodoListPage = () => {
           </Card>
         )}
 
-        {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <LoadingSpinner size="lg" />
-          </div>
-        ) : (
+        <ProgressiveLoading 
+          isLoading={loading && todos.length === 0}
+          showSpinner={todos.length === 0}
+          className="h-64"
+        >
           <div className="grid gap-8 lg:grid-cols-2">
             {/* Enhanced Pending Tasks Section */}
             <Card className="border-blue-200 shadow-sm">
@@ -564,7 +575,7 @@ const TodoListPage = () => {
 
             {/* Completed Tasks Section */}
             <Card className="border-green-200 shadow-sm">
-              <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b border-green-100">
+              <CardHeader className="bg-gradient-to-r from-green-50 to-indigo-50 border-b border-green-100">
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="text-green-900 flex items-center gap-2">
@@ -584,14 +595,46 @@ const TodoListPage = () => {
               </CardHeader>
               <CardContent className="p-6">
                 {completedTodos.length > 0 ? (
-                  <div className="space-y-4">
-                    {completedTodos.map((todo) => (
-                      <CompletedTaskCard
-                        key={todo.id}
-                        todo={todo}
-                      />
-                    ))}
-                  </div>
+                  <>
+                    <div className="space-y-4">
+                      {paginatedCompletedTodos.map((todo) => (
+                        <CompletedTaskCard
+                          key={todo.id}
+                          todo={todo}
+                        />
+                      ))}
+                    </div>
+                    {totalCompletedPages > 1 && (
+                      <div className="flex justify-center items-center gap-2 mt-6">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={completedPage === 1}
+                          onClick={() => setCompletedPage((p) => Math.max(1, p - 1))}
+                        >
+                          Previous
+                        </Button>
+                        {Array.from({ length: totalCompletedPages }).map((_, idx) => (
+                          <Button
+                            key={idx}
+                            variant={completedPage === idx + 1 ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setCompletedPage(idx + 1)}
+                          >
+                            {idx + 1}
+                          </Button>
+                        ))}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={completedPage === totalCompletedPages}
+                          onClick={() => setCompletedPage((p) => Math.min(totalCompletedPages, p + 1))}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <div className="text-center py-12">
                     <Circle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -602,7 +645,7 @@ const TodoListPage = () => {
               </CardContent>
             </Card>
           </div>
-        )}
+        </ProgressiveLoading>
       </PageContainer>
 
       {/* Report Dialog */}
@@ -630,11 +673,6 @@ const TodoListPage = () => {
               <span>Completed late:</span>
               <span className="text-red-700 font-semibold">{userStats.late}</span>
             </div>
-            <div className="flex items-center gap-2 text-base">
-              <Clock className="h-5 w-5 text-indigo-500" />
-              <span>Total hours completed:</span>
-              <span className="text-indigo-700 font-semibold">{userStats.totalHours.toFixed(2)} h</span>
-            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowReport(false)}>Close</Button>
@@ -659,12 +697,11 @@ const TodoListPage = () => {
                   <th className="px-4 py-2 border font-semibold">Completed</th>
                   <th className="px-4 py-2 border font-semibold">On Time</th>
                   <th className="px-4 py-2 border font-semibold">Late</th>
-                  <th className="px-4 py-2 border font-semibold">Total Hours</th>
                 </tr>
               </thead>
               <tbody>
                 {globalStats.length === 0 ? (
-                  <tr><td colSpan={5} className="text-center py-6 text-gray-500">No completed to-dos yet.</td></tr>
+                  <tr><td colSpan={4} className="text-center py-6 text-gray-500">No completed to-dos yet.</td></tr>
                 ) : (
                   globalStats.map((row) => (
                     <tr key={row.user} className="even:bg-gray-50 hover:bg-blue-50 transition-colors">
@@ -672,7 +709,6 @@ const TodoListPage = () => {
                       <td className="px-4 py-2 border text-center text-blue-700 font-semibold">{row.completed}</td>
                       <td className="px-4 py-2 border text-center text-green-700 font-semibold">{row.onTime}</td>
                       <td className="px-4 py-2 border text-center text-red-700 font-semibold">{row.late}</td>
-                      <td className="px-4 py-2 border text-center text-indigo-700 font-semibold">{row.totalHours.toFixed(2)} h</td>
                     </tr>
                   ))
                 )}

@@ -123,10 +123,10 @@ export function CreateProjectDialog({ open, onOpenChange, onProjectCreate }: Cre
     try {
       console.log('Creating project in database with data:', formData);
       
-      // Get selected team member names for the team array
-      const selectedTeamMemberNames = teamMembers
+      // Get selected team member emails for the team array
+      const selectedTeamMemberEmails = teamMembers
         .filter(member => formData.selectedTeamMembers.includes(member.id))
-        .map(member => member.name);
+        .map(member => member.email);
       
       // Parse budget value
       const budgetValue = formData.budget === "" ? 0 : parseFloat(formData.budget) || 0;
@@ -138,7 +138,7 @@ export function CreateProjectDialog({ open, onOpenChange, onProjectCreate }: Cre
           name: formData.name,
           description: formData.description || null,
           status: formData.status,
-          team: selectedTeamMemberNames,
+          team: selectedTeamMemberEmails,
           budget: {
             total: budgetValue,
             used: 0,
@@ -172,7 +172,7 @@ export function CreateProjectDialog({ open, onOpenChange, onProjectCreate }: Cre
         status: data.status as Project["status"],
         startDate: formData.startDate,
         endDate: formData.endDate || undefined,
-        teamMembers: selectedTeamMemberNames.length,
+        teamMembers: selectedTeamMemberEmails.length,
         progress: formData.progress,
       };
 

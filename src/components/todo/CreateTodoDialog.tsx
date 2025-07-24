@@ -21,6 +21,7 @@ import { type TodoItem } from "@/services/todos/todoService";
 interface Project {
   id: string;
   name: string;
+  team?: string[];
 }
 
 interface TeamMember {
@@ -59,15 +60,17 @@ export function CreateTodoDialog({ onTodoCreated }: CreateTodoDialogProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectProgress, setProjectProgress] = useState<number>(0);
   const [loadingProjects, setLoadingProjects] = useState(false);
+  const [selectedProjectTeam, setSelectedProjectTeam] = useState<string[]>([]);
+  const [availableTeamMembers, setAvailableTeamMembers] = useState<TeamMember[]>([]);
 
-  // Fetch projects from Supabase
+  // Fetch projects from Supabase with team information
   const fetchProjects = async () => {
     setLoadingProjects(true);
     try {
       console.log('Fetching projects for todo dialog...');
       const { data, error } = await supabase
         .from('projects')
-        .select('id, name')
+        .select('id, name, team')
         .order('name', { ascending: true });
 
       if (error) {
@@ -140,16 +143,35 @@ export function CreateTodoDialog({ onTodoCreated }: CreateTodoDialogProps) {
     }
   };
 
-  // Update project progress when selected project changes
+  // Update project progress and team members when selected project changes
   useEffect(() => {
     if (selectedProject) {
+      // Get project progress
       getProjectProgress(selectedProject).then(progress => {
         setProjectProgress(progress);
       });
+      
+      // Get project team members
+      const project = projects.find(p => p.id === selectedProject);
+      if (project && project.team) {
+        setSelectedProjectTeam(project.team);
+        
+        // Filter team members to only show those assigned to this project
+        const projectTeamEmails = project.team.map(member => member.toLowerCase());
+        const availableMembers = teamMembers.filter(member => 
+          member.email && projectTeamEmails.includes(member.email.toLowerCase())
+        );
+        setAvailableTeamMembers(availableMembers);
+      } else {
+        setSelectedProjectTeam([]);
+        setAvailableTeamMembers([]);
+      }
     } else {
       setProjectProgress(0);
+      setSelectedProjectTeam([]);
+      setAvailableTeamMembers([]);
     }
-  }, [selectedProject]);
+  }, [selectedProject, projects, teamMembers]);
 
   useEffect(() => {
     if (open) {
@@ -231,6 +253,29 @@ export function CreateTodoDialog({ onTodoCreated }: CreateTodoDialogProps) {
       return;
     }
 
+    // Check if all assigned users are members of the selected project
+    if (selectedProject) {
+      const project = projects.find(p => p.id === selectedProject);
+      if (project && project.team) {
+        const projectTeamEmails = project.team.map(member => member.toLowerCase());
+        const invalidAssignments = validTasks.some(task =>
+          task.assigned_to.some(assignedUser => {
+            const assignedMember = teamMembers.find(m => m.name === assignedUser);
+            return !assignedMember?.email || !projectTeamEmails.includes(assignedMember.email.toLowerCase());
+          })
+        );
+
+        if (invalidAssignments) {
+          toast({
+            title: "Error",
+            description: "All assigned users must be members of the selected project. Please modify the project team members first.",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+    }
+
     if (!selectedProject) {
       toast({
         title: "Error",
@@ -310,8 +355,14 @@ export function CreateTodoDialog({ onTodoCreated }: CreateTodoDialogProps) {
               </SelectContent>
             </Select>
             {selectedProject && (
-              <div className="text-sm text-blue-600 bg-blue-50 p-2 rounded-md">
-                Project Progress: {projectProgress}% | Remaining: {100 - projectProgress}%
+              <div className="space-y-2">
+                <div className="text-sm text-blue-600 bg-blue-50 p-2 rounded-md">
+                  Project Progress: {projectProgress}% | Remaining: {100 - projectProgress}%
+                </div>
+                <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded-md">
+                  <strong>Permission Notice:</strong> Only team members assigned to this project can be assigned tasks. 
+                  To add new team members, please edit the project first.
+                </div>
               </div>
             )}
           </div>
@@ -373,6 +424,11 @@ export function CreateTodoDialog({ onTodoCreated }: CreateTodoDialogProps) {
                       <Label className="text-xs text-gray-600 mb-1 block flex items-center gap-1">
                         <User className="h-3 w-3" />
                         Assign to (required)
+                        {selectedProject && availableTeamMembers.length === 0 && (
+                          <span className="text-red-500 text-xs ml-1">
+                            (No team members assigned to this project)
+                          </span>
+                        )}
                       </Label>
                       <div className="space-y-2">
                         <Select 
@@ -387,18 +443,36 @@ export function CreateTodoDialog({ onTodoCreated }: CreateTodoDialogProps) {
                             <SelectValue placeholder="Add team member" />
                           </SelectTrigger>
                           <SelectContent>
-                            {teamMembers
-                              .filter(member => !task.assigned_to.includes(member.name))
-                              .map((member) => (
-                                <SelectItem key={member.id} value={member.name}>
-                                  <div className="flex items-center gap-2">
-                                    <span>{member.name}</span>
-                                    {member.role && (
-                                      <span className="text-xs text-gray-500">({member.role})</span>
-                                    )}
-                                  </div>
-                                </SelectItem>
-                              ))}
+                            {selectedProject ? (
+                              // Only show team members assigned to the selected project
+                              availableTeamMembers
+                                .filter(member => !task.assigned_to.includes(member.name))
+                                .map((member) => (
+                                  <SelectItem key={member.id} value={member.name}>
+                                    <div className="flex items-center gap-2">
+                                      <span>{member.name}</span>
+                                      {member.role && (
+                                        <span className="text-xs text-gray-500">({member.role})</span>
+                                      )}
+                                      <span className="text-xs text-green-600">✓ Project Member</span>
+                                    </div>
+                                  </SelectItem>
+                                ))
+                            ) : (
+                              // Show all team members if no project is selected
+                              teamMembers
+                                .filter(member => !task.assigned_to.includes(member.name))
+                                .map((member) => (
+                                  <SelectItem key={member.id} value={member.name}>
+                                    <div className="flex items-center gap-2">
+                                      <span>{member.name}</span>
+                                      {member.role && (
+                                        <span className="text-xs text-gray-500">({member.role})</span>
+                                      )}
+                                    </div>
+                                  </SelectItem>
+                                ))
+                            )}
                           </SelectContent>
                         </Select>
                         

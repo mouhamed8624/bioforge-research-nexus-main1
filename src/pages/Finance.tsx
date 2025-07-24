@@ -90,6 +90,8 @@ const Finance = () => {
       console.log("Total spending amount:", data?.reduce((sum, expense) => sum + Number(expense.amount), 0));
       return data || [];
     },
+    staleTime: 300000, // 5 minutes - reduce refetching
+    refetchOnWindowFocus: false, // Disable refetch on window focus
   });
 
   // Calculate financial overview from real data with better logging

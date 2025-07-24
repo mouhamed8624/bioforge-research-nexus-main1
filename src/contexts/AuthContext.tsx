@@ -142,7 +142,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const { data: { session }, error } = await Promise.race([
           supabase.auth.getSession(),
           new Promise<{ data: { session: Session | null }, error: any }>((_, reject) =>
-            setTimeout(() => reject(new Error('Session timeout')), 800)
+            setTimeout(() => reject(new Error('Session timeout')), 400)
           )
         ]);
         
@@ -163,13 +163,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     };
 
-    // Aggressive timeout for ultra-fast loading - force stop after 1 second
+    // Aggressive timeout for ultra-fast loading - force stop after 500ms
     const timeout = setTimeout(() => {
       if (mounted) {
         console.log("Fast auth timeout reached, forcing loading to false");
         setLoading(false);
       }
-    }, 1000);
+    }, 500);
 
     initializeAuth().finally(() => {
       if (mounted) {
@@ -258,7 +258,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
   
-  // Show loading only for the first 1 second, then force show app
+  // Show loading only for the first 500ms, then force show app for better UX
   const shouldShowLoading = loading && !showRoleSelection;
   
   const value = useMemo(() => ({

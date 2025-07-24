@@ -216,10 +216,10 @@ export function EditProjectDialog({ open, onOpenChange, project, onProjectUpdate
     try {
       console.log('Updating project in database:', project.id, 'with data:', formData);
 
-      // Get selected team member names for the team array
-      const selectedTeamMemberNames = teamMembers
+      // Get selected team member emails for the team array
+      const selectedTeamMemberEmails = teamMembers
         .filter(member => formData.selectedTeamMembers.includes(member.id))
-        .map(member => member.name);
+        .map(member => member.email);
 
       // Update project in Supabase with comprehensive payload
       const { error } = await supabase
@@ -228,7 +228,7 @@ export function EditProjectDialog({ open, onOpenChange, project, onProjectUpdate
           name: formData.name,
           description: formData.description || null,
           status: formData.status,
-          team: selectedTeamMemberNames.length > 0 ? selectedTeamMemberNames : Array.from({ length: formData.teamMembers }, (_, i) => `Team Member ${i + 1}`),
+          team: selectedTeamMemberEmails.length > 0 ? selectedTeamMemberEmails : Array.from({ length: project.teamMembers }, (_, i) => `Team Member ${i + 1}`),
           budget: {
             total: budgetValue,
             used: project.budget?.used || 0,

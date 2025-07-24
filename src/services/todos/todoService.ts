@@ -136,15 +136,11 @@ export const getUserTodoStats = async (userEmail: string): Promise<TodoStats> =>
       new Date(todo.completed_at) > new Date(todo.deadline)
     ).length;
 
-    // Calculate total hours: sum of actual time spent (completed_at - created_at)
-    const totalHours = completedTodos.reduce((sum, todo) => {
-      if (todo.completed_at && todo.created_at) {
-        const diffMs = new Date(todo.completed_at).getTime() - new Date(todo.created_at).getTime();
-        return sum + Math.max(0, diffMs / (1000 * 60 * 60));
-      }
-      return sum;
-    }, 0);
+    // Calculate total hours: sum of actual time spent (use hours column)
+    const totalHours = completedTodos.reduce((sum, todo) => sum + (todo.hours || 0), 0);
 
+    console.log(`getUserTodoStats for ${userEmail}: completed=${completedTodos.length}, onTime=${onTime}, late=${late}, totalHours=${totalHours}`);
+    
     return {
       completed: completedTodos.length,
       onTime,
@@ -195,9 +191,7 @@ export const getGlobalTodoStats = async (): Promise<UserTodoStats[]> => {
         if (!userStatsMap[todo.completed_by]) {
           userStatsMap[todo.completed_by] = { completed: 0, onTime: 0, late: 0, totalHours: 0 };
         }
-        
         userStatsMap[todo.completed_by].completed++;
-        
         if (todo.deadline && todo.completed_at) {
           const completedOnTime = new Date(todo.completed_at) <= new Date(todo.deadline);
           if (completedOnTime) {
@@ -206,11 +200,7 @@ export const getGlobalTodoStats = async (): Promise<UserTodoStats[]> => {
             userStatsMap[todo.completed_by].late++;
           }
         }
-        
-        if (todo.completed_at && todo.created_at) {
-          const diffMs = new Date(todo.completed_at).getTime() - new Date(todo.created_at).getTime();
-          userStatsMap[todo.completed_by].totalHours += Math.max(0, diffMs / (1000 * 60 * 60));
-        }
+        userStatsMap[todo.completed_by].totalHours += (todo.hours || 0);
       }
     });
 
@@ -223,6 +213,11 @@ export const getGlobalTodoStats = async (): Promise<UserTodoStats[]> => {
 
     console.log('getGlobalTodoStats: Final user stats:', userStats);
     console.log('getGlobalTodoStats: User stats map:', userStatsMap);
+    
+    // Log total hours for each user
+    userStats.forEach(stat => {
+      console.log(`Global stats - User ${stat.user}: totalHours=${stat.totalHours}`);
+    });
 
     return userStats;
   } catch (error) {
@@ -274,6 +269,54 @@ export const migrateTodosFromLocalStorage = async (): Promise<void> => {
     localStorage.removeItem('todos');
   } catch (error) {
     console.error('Error in migrateTodosFromLocalStorage:', error);
+    throw error;
+  }
+};
+
+// Fix existing todos that don't have completed_at timestamps
+export const fixCompletedTodos = async (): Promise<void> => {
+  try {
+    console.log('Fixing completed todos without completed_at timestamps...');
+    
+    // Get all completed todos that don't have completed_at
+    const { data: todos, error } = await supabase
+      .from('todos')
+      .select('*')
+      .eq('completed', true)
+      .is('completed_at', null);
+
+    if (error) {
+      console.error('Error fetching todos to fix:', error);
+      throw error;
+    }
+
+    if (!todos || todos.length === 0) {
+      console.log('No completed todos found without completed_at timestamps');
+      return;
+    }
+
+    console.log(`Found ${todos.length} completed todos without completed_at timestamps`);
+
+    // Update each todo with a completed_at timestamp
+    for (const todo of todos) {
+      const { error: updateError } = await supabase
+        .from('todos')
+        .update({
+          completed_at: todo.updated_at || new Date().toISOString(),
+          completed_by: todo.completed_by || 'Unknown User'
+        })
+        .eq('id', todo.id);
+
+      if (updateError) {
+        console.error(`Error updating todo ${todo.id}:`, updateError);
+      } else {
+        console.log(`Fixed todo ${todo.id} with completed_at timestamp`);
+      }
+    }
+
+    console.log('Successfully fixed completed todos');
+  } catch (error) {
+    console.error('Error in fixCompletedTodos:', error);
     throw error;
   }
 }; 

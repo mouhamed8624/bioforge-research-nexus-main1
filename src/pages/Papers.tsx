@@ -38,8 +38,9 @@ const Papers = () => {
   const { data: papers = [], isLoading, refetch, isFetching } = useQuery({
     queryKey: ["papers"],
     queryFn: getPapers,
-    staleTime: 30000, // Consider data fresh for 30 seconds
-    refetchOnWindowFocus: true,
+    staleTime: 60000, // Consider data fresh for 60 seconds (reduced refetching)
+    refetchOnWindowFocus: false, // Disable refetch on window focus for better UX
+    refetchOnMount: false, // Don't refetch on mount if we have data
   });
 
   // Get current user ID
