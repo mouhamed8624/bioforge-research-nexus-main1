@@ -23,6 +23,7 @@ import {
   fixCompletedTodos,
   type TodoItem as DatabaseTodoItem 
 } from "@/services/todos/todoService";
+import { createTodoCompletionProgress, createProgressBreakdown } from "@/services/progress/progressBreakdownService";
 
 // Use the database TodoItem type
 type TodoItem = DatabaseTodoItem;
@@ -120,70 +121,7 @@ const TodoListPage = () => {
     }
   }, [userProfile?.role]);
 
-  const updateProjectProgress = async (projectId: string, percentageToAdd: number) => {
-    try {
-      console.log(`Updating project ${projectId} progress by ${percentageToAdd}%`);
-      
-      // First, get the current project data
-      const { data: currentProject, error: fetchError } = await supabase
-        .from('projects')
-        .select('*')
-        .eq('id', projectId)
-        .single();
 
-      if (fetchError) {
-        console.error('Error fetching current project:', fetchError);
-        throw fetchError;
-      }
-
-      if (!currentProject) {
-        throw new Error('Project not found');
-      }
-
-      // Safely handle the budget Json type
-      let currentBudget: ProjectBudget = {};
-      if (currentProject.budget && typeof currentProject.budget === 'object' && !Array.isArray(currentProject.budget)) {
-        currentBudget = currentProject.budget as ProjectBudget;
-      }
-
-      // Calculate new progress
-      const currentProgress = currentBudget.progress || 0;
-      const newProgress = Math.min(100, currentProgress + percentageToAdd);
-
-      // Update the project with new progress
-      const updatedBudget: ProjectBudget = {
-        ...currentBudget,
-        progress: newProgress
-      };
-
-      const { error: updateError } = await supabase
-        .from('projects')
-        .update({ 
-          budget: updatedBudget as Json,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', projectId);
-
-      if (updateError) {
-        console.error('Error updating project progress:', updateError);
-        throw updateError;
-      }
-
-      console.log(`Project ${projectId} progress updated to ${newProgress}%`);
-      
-      toast({
-        title: "Project Progress Updated",
-        description: `Added ${percentageToAdd}% to project progress. New progress: ${newProgress}%`,
-      });
-    } catch (error) {
-      console.error('Error updating project progress:', error);
-      toast({
-        title: "Warning",
-        description: "Task completed but failed to update project progress in database.",
-        variant: "destructive",
-      });
-    }
-  };
 
   const addTodos = async (newTodos: Omit<TodoItem, 'id' | 'created_at' | 'updated_at'>[]) => {
     try {
@@ -239,6 +177,21 @@ const TodoListPage = () => {
         throw new Error("Task not found");
       }
 
+      // Get current project progress before updating
+      let currentProgress = 0;
+      if (todoToComplete.project_id) {
+        const { data: currentProject } = await supabase
+          .from('projects')
+          .select('budget')
+          .eq('id', todoToComplete.project_id)
+          .single();
+        
+        if (currentProject?.budget && typeof currentProject.budget === 'object') {
+          const budget = currentProject.budget as ProjectBudget;
+          currentProgress = budget.progress || 0;
+        }
+      }
+
       // Mark as completed in database
       const updatedTodo = await markTodoAsCompleted(todoId, completedBy);
 
@@ -251,7 +204,62 @@ const TodoListPage = () => {
 
       // Update project progress in Supabase if project_id exists
       if (todoToComplete.project_id) {
-        await updateProjectProgress(todoToComplete.project_id, todoToComplete.percentage);
+        const newProgress = Math.min(100, currentProgress + todoToComplete.percentage);
+        
+        console.log('Creating progress breakdown record:', {
+          projectId: todoToComplete.project_id,
+          todoId,
+          completedBy,
+          progressAdded: todoToComplete.percentage,
+          previousProgress: currentProgress,
+          newProgress,
+          task: todoToComplete.task
+        });
+        
+        // Create progress breakdown record - this MUST succeed
+        let progressRecord = null;
+        try {
+          progressRecord = await createTodoCompletionProgress(
+            todoToComplete.project_id,
+            todoId,
+            completedBy,
+            todoToComplete.percentage,
+            currentProgress,
+            newProgress,
+            todoToComplete.task
+          );
+          
+          console.log('Progress breakdown record created successfully:', progressRecord);
+        } catch (progressError) {
+          console.error('Error creating progress breakdown record:', progressError);
+          
+          // Fallback: Try to create a basic progress breakdown record
+          try {
+            console.log('Attempting fallback progress breakdown creation...');
+            progressRecord = await createProgressBreakdown({
+              project_id: todoToComplete.project_id,
+              todo_id: todoId,
+              user_email: completedBy,
+              progress_added: todoToComplete.percentage,
+              previous_progress: currentProgress,
+              new_progress: newProgress,
+              reason: `Task completed: ${todoToComplete.task}`,
+              details: `Completed task "${todoToComplete.task}" which contributed ${todoToComplete.percentage}% to project progress.`
+            });
+            console.log('Fallback progress breakdown record created:', progressRecord);
+          } catch (fallbackError) {
+            console.error('Fallback progress breakdown creation also failed:', fallbackError);
+            // Show error to user but don't block the todo completion
+            toast({
+              title: "Warning",
+              description: "Todo completed but progress tracking failed. Please check console for details.",
+              variant: "destructive",
+            });
+          }
+        }
+
+        // Note: Project progress is automatically updated by database trigger
+        // No need to call updateProjectProgress here as it would cause double updates
       }
 
       // Refresh stats after completion
@@ -260,7 +268,7 @@ const TodoListPage = () => {
 
       toast({
         title: "Success",
-        description: "Task marked as completed and project progress updated.",
+        description: "Task marked as completed. Project progress will be updated automatically.",
       });
     } catch (error) {
       console.error("Error marking task as completed:", error);

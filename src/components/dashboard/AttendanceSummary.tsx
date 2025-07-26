@@ -9,13 +9,13 @@ import { useAuth } from "@/contexts/AuthContext";
 
 export const AttendanceSummary = () => {
   const { userProfile } = useAuth();
-  if (userProfile?.role === 'lab') {
-    return null;
-  }
-
   const [attendanceStats, setAttendanceStats] = useState<AttendanceStats | null>(null);
   const [recentAttendance, setRecentAttendance] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  if (userProfile?.role === 'lab') {
+    return null;
+  }
 
   useEffect(() => {
     const fetchAttendanceData = async () => {

@@ -166,21 +166,35 @@ export function ProjectsDisplay() {
     fetchProjects();
   }, []);
 
-  // Fetch all todos from localStorage when Project Details modal is opened
+  // Fetch all todos from Supabase when Project Details modal is opened
   useEffect(() => {
     if (selectedProject) {
-      const savedTodos = localStorage.getItem('todos');
-      if (savedTodos) {
-        try {
-          setAllTodos(JSON.parse(savedTodos));
-        } catch {
-          setAllTodos([]);
-        }
-      } else {
-        setAllTodos([]);
-      }
+      fetchTodosFromSupabase();
     }
   }, [selectedProject]);
+
+  const fetchTodosFromSupabase = async () => {
+    try {
+      console.log('Fetching todos from Supabase for project:', selectedProject?.id);
+      const { data, error } = await supabase
+        .from('todos')
+        .select('*')
+        .eq('project_id', selectedProject?.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching todos:', error);
+        setAllTodos([]);
+        return;
+      }
+
+      console.log('Successfully fetched todos:', data?.length || 0);
+      setAllTodos(data || []);
+    } catch (error) {
+      console.error('Error fetching todos:', error);
+      setAllTodos([]);
+    }
+  };
 
   const handleCreateProject = () => {
     console.log("Creating new project...");
@@ -635,14 +649,14 @@ export function ProjectsDisplay() {
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div 
                         className={`h-2 rounded-full transition-all duration-300 ${
-                          project.budget.progress > 90 ? 'bg-red-500' : 
-                          project.budget.progress > 75 ? 'bg-yellow-500' : 'bg-green-500'
+                          (project.budget.used / project.budget.total * 100) > 90 ? 'bg-red-500' : 
+                          (project.budget.used / project.budget.total * 100) > 75 ? 'bg-yellow-500' : 'bg-green-500'
                         }`}
-                        style={{ width: `${Math.min(project.budget.progress, 100)}%` }}
+                        style={{ width: `${Math.min((project.budget.used / project.budget.total * 100), 100)}%` }}
                       />
                     </div>
                     <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>{project.budget.progress.toFixed(1)}% used</span>
+                      <span>{((project.budget.used / project.budget.total) * 100).toFixed(1)}% used</span>
                       <span>${(project.budget.total - project.budget.used).toLocaleString()} remaining</span>
                     </div>
                   </div>
@@ -852,12 +866,32 @@ export function ProjectsDisplay() {
                           </div>
                           {/* Progress Breakdown Table */}
                           <div className="mt-6">
-                            <h4 className="font-semibold text-base mb-2 flex items-center gap-2">
-                              <CheckCircle2 className="h-4 w-4 text-green-600" />
-                              Progress Breakdown
-                            </h4>
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="font-semibold text-base flex items-center gap-2">
+                                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                Progress Breakdown
+                              </h4>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={fetchTodosFromSupabase}
+                                className="text-xs"
+                              >
+                                <Clock className="h-3 w-3 mr-1" />
+                                Refresh
+                              </Button>
+                            </div>
                             {allTodos.filter(todo => todo.project_id === selectedProject.id && todo.completed).length === 0 ? (
-                              <div className="text-muted-foreground text-sm">No completed to-dos for this project yet.</div>
+                              <div className="space-y-2">
+                                <div className="text-muted-foreground text-sm">No completed to-dos for this project yet.</div>
+                                <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
+                                  <div>Debug Info:</div>
+                                  <div>• Total todos loaded: {allTodos.length}</div>
+                                  <div>• Project ID: {selectedProject.id}</div>
+                                  <div>• Todos for this project: {allTodos.filter(todo => todo.project_id === selectedProject.id).length}</div>
+                                  <div>• Completed todos: {allTodos.filter(todo => todo.project_id === selectedProject.id && todo.completed).length}</div>
+                                </div>
+                              </div>
                             ) : (
                               <div className="overflow-x-auto">
                                 <table className="min-w-full border text-sm rounded-xl overflow-hidden">
@@ -911,6 +945,7 @@ export function ProjectsDisplay() {
                                   ${(selectedProject.budget.total - selectedProject.budget.used).toLocaleString()}
                                 </span>
                               </div>
+
                             </>
                           )}
                         </div>
@@ -1097,6 +1132,25 @@ export function ProjectsDisplay() {
                               <span className="font-medium">${selectedProject.budget.used.toLocaleString()}</span>
                             </div>
                             
+                            {/* Budget Progress Bar */}
+                            <div className="space-y-2">
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm text-muted-foreground">Budget Usage</span>
+                                <span className="text-sm text-muted-foreground">
+                                  {((selectedProject.budget.used / selectedProject.budget.total) * 100).toFixed(1)}%
+                                </span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div 
+                                  className={`h-2 rounded-full transition-all duration-300 ${
+                                    (selectedProject.budget.used / selectedProject.budget.total * 100) > 90 ? 'bg-red-500' : 
+                                    (selectedProject.budget.used / selectedProject.budget.total * 100) > 75 ? 'bg-yellow-500' : 'bg-green-500'
+                                  }`}
+                                  style={{ width: `${Math.min((selectedProject.budget.used / selectedProject.budget.total * 100), 100)}%` }}
+                                />
+                              </div>
+                            </div>
+                            
                             <div className="flex justify-between items-center">
                               <span className="text-sm text-muted-foreground">Remaining</span>
                               <span className="font-medium text-green-600">
@@ -1131,11 +1185,18 @@ export function ProjectsDisplay() {
                         
                         <div className="flex items-start gap-3">
                           <div className="bg-blue-500 w-3 h-3 rounded-full mt-1"></div>
-                          <div>
+                          <div className="flex-1">
                             <p className="font-medium text-sm">Current Progress</p>
                             <p className="text-xs text-muted-foreground">
                               {selectedProject.progress}% completed
                             </p>
+                            {/* Project Progress Bar */}
+                            <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                              <div 
+                                className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                                style={{ width: `${selectedProject.progress}%` }}
+                              />
+                            </div>
                           </div>
                         </div>
                         

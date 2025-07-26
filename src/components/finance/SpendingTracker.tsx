@@ -164,6 +164,7 @@ export function SpendingTracker({ projectId }: { projectId: string | null }) {
       queryClient.invalidateQueries({ queryKey: ["selectedProject", projectId] });
       queryClient.invalidateQueries({ queryKey: ["projectsForBudget"] });
       queryClient.invalidateQueries({ queryKey: ["riskProjects"] });
+      queryClient.invalidateQueries({ queryKey: ["projects"] }); // Refresh projects list
     } catch (err) {
       toast({
         title: "Error",
@@ -212,6 +213,7 @@ export function SpendingTracker({ projectId }: { projectId: string | null }) {
       queryClient.invalidateQueries({ queryKey: ["selectedProject", projectId] });
       queryClient.invalidateQueries({ queryKey: ["projectsForBudget"] });
       queryClient.invalidateQueries({ queryKey: ["riskProjects"] });
+      queryClient.invalidateQueries({ queryKey: ["projects"] }); // Refresh projects list
     } catch (err) {
       toast({
         title: "Error",

@@ -815,6 +815,63 @@ export type Database = {
           },
         ]
       }
+      progress_breakdown: {
+        Row: {
+          id: string
+          project_id: string
+          todo_id: string | null
+          user_email: string
+          progress_added: number
+          previous_progress: number
+          new_progress: number
+          reason: string
+          details: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          todo_id?: string | null
+          user_email: string
+          progress_added: number
+          previous_progress: number
+          new_progress: number
+          reason: string
+          details?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          todo_id?: string | null
+          user_email?: string
+          progress_added?: number
+          previous_progress?: number
+          new_progress?: number
+          reason?: string
+          details?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "progress_breakdown_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progress_breakdown_todo_id_fkey"
+            columns: ["todo_id"]
+            isOneToOne: false
+            referencedRelation: "todos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       team_members: {
         Row: {
           created_at: string | null
