@@ -52,7 +52,7 @@ const ROLE_NAV_CONFIG: Record<string, string[]> = {
     "calendar",
     "reservations",
     "teams",
-    "todo-list",
+    "finance",
     "button-project"
   ],
   manager: [

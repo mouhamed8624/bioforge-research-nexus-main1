@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { RecentActivities } from "@/components/dashboard/RecentActivities";
 import { RecentAllActivities } from "@/components/dashboard/RecentAllActivities";
+import { RecentFinancialActivities } from "@/components/dashboard/RecentFinancialActivities";
 import { RecentPapers } from "@/components/dashboard/RecentPapers";
 import { BudgetChart } from "@/components/dashboard/BudgetChart";
 import { InventoryStatus } from "@/components/dashboard/InventoryStatus";
@@ -363,7 +364,7 @@ const Dashboard = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <InventoryStatus />
-              <RecentAllActivities />
+              <RecentFinancialActivities />
             </div>
           </div>
         </PageContainer>

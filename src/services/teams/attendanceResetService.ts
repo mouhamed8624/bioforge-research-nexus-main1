@@ -138,8 +138,10 @@ export const scheduleDailyReset = (): void => {
 export const startAttendanceService = (): void => {
   console.log('Starting attendance service...');
   
-  // Initialize today's attendance
-  initializeDailyAttendance();
+  // Initialize today's attendance in background
+  initializeDailyAttendance().catch(error => {
+    console.error('Background attendance initialization failed:', error);
+  });
   
   // Schedule daily resets
   scheduleDailyReset();

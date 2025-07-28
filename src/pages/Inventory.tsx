@@ -33,6 +33,8 @@ const Inventory = () => {
   const { userProfile } = useAuth();
   const userRole = userProfile?.role;
   const isManagerOrDirector = userRole === 'manager' || userRole === 'general_director';
+  const isFinancialUser = userRole === 'financial';
+  const canAddItems = !isManagerOrDirector && !isFinancialUser;
 
   const [addInventoryOpen, setAddInventoryOpen] = useState(false);
   const [addOrderOpen, setAddOrderOpen] = useState(false);
@@ -256,7 +258,7 @@ const Inventory = () => {
                               {item.status}
                             </span>
                           </TableCell>
-                          {!isManagerOrDirector && (
+                          {canAddItems && (
                             <TableCell>
                               <Button variant="ghost" size="icon" onClick={() => handleEditInventory(item)}>
                                 <Edit className="h-4 w-4" />
@@ -272,7 +274,7 @@ const Inventory = () => {
                 <div className="text-sm text-muted-foreground">
                   Showing {inventoryItems.length} items
                 </div>
-                {!isManagerOrDirector && (
+                {canAddItems && (
                   <Button size="sm" onClick={() => setAddInventoryOpen(true)}>
                     <Plus className="mr-2 h-4 w-4" />
                     Add Item
@@ -299,12 +301,12 @@ const Inventory = () => {
                       <TableHead>Status</TableHead>
                       <TableHead>Location</TableHead>
                       <TableHead>Last Maintenance</TableHead>
-                      {!isManagerOrDirector && <TableHead>Actions</TableHead>}
+                      {canAddItems && <TableHead>Actions</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {equipmentItems.length === 0 ? <TableRow>
-                        <TableCell colSpan={isManagerOrDirector ? 6 : 7} className="text-center py-4">
+                        <TableCell colSpan={canAddItems ? 7 : 6} className="text-center py-4">
                           No equipment items found. Add your first equipment to get started.
                         </TableCell>
                       </TableRow> : equipmentItems.map(item => <TableRow key={item.id}>
@@ -318,7 +320,7 @@ const Inventory = () => {
                           </TableCell>
                           <TableCell>{item.location}</TableCell>
                           <TableCell>{item.lastMaintenance || "Not recorded"}</TableCell>
-                          {!isManagerOrDirector && (
+                          {canAddItems && (
                             <TableCell>
                               <Button variant="ghost" size="icon" onClick={() => handleEditEquipment(item)}>
                                 <Edit className="h-4 w-4" />
@@ -334,7 +336,7 @@ const Inventory = () => {
                 <div className="text-sm text-muted-foreground">
                   Showing {equipmentItems.length} equipment items
                 </div>
-                {!isManagerOrDirector && (
+                {canAddItems && (
                   <Button size="sm" onClick={() => setAddEquipmentOpen(true)}>
                     <Plus className="mr-2 h-4 w-4" />
                     Add Equipment

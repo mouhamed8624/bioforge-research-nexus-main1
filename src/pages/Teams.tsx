@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { Button } from "@/components/ui/button";
@@ -36,7 +36,7 @@ interface TeamMember {
 // Role permissions configuration
 const ROLE_NAV_CONFIG: Record<string, string[]> = {
   financial: [
-    "dashboard", "inventory", "calendar", "reservations", "teams", "todo-list", "button-project"
+    "dashboard", "inventory", "calendar", "reservations", "teams", "finance", "button-project"
   ],
   manager: [
     "teams", "dashboard", "calendar", "inventory", "todo-list", "button-project"
@@ -99,6 +99,7 @@ const Teams = () => {
     role: ""
   });
   const [isAttendanceReportOpen, setIsAttendanceReportOpen] = useState(false);
+  const [lastFetchTime, setLastFetchTime] = useState<number>(0);
   const { toast } = useToast();
   const { userProfile } = useAuth();
   const userRole = userProfile?.role;
@@ -168,18 +169,30 @@ const Teams = () => {
 
 
 
-  // Enhanced fetch function - prioritize team_members data and supplement with profiles
-  const fetchTeamMembers = useCallback(async () => {
+  // Optimized fetch function - parallel queries and lazy attendance loading
+  const fetchTeamMembers = useCallback(async (forceRefresh = false) => {
+    // Simple cache: don't refetch if last fetch was less than 30 seconds ago
+    const now = Date.now();
+    if (!forceRefresh && now - lastFetchTime < 30000) {
+      console.log('Using cached team members data');
+      return;
+    }
+    
     setLoading(true);
     try {
       console.log('Fetching team members...');
       
-      // First, fetch team_members data (this should show all users)
-      const { data: teamMembersData, error: teamMembersError } = await supabase
-        .from('team_members')
-        .select('*');
+      // Fetch team_members and profiles data in parallel for better performance
+      const [teamMembersResult, profilesResult] = await Promise.all([
+        supabase.from('team_members').select('*'),
+        supabase.from('profiles').select('*')
+      ]);
+
+      const { data: teamMembersData, error: teamMembersError } = teamMembersResult;
+      const { data: profilesData, error: profilesError } = profilesResult;
 
       console.log('Team members query result:', { teamMembersData, teamMembersError });
+      console.log('Profiles query result:', { profilesData, profilesError });
 
       if (teamMembersError) {
         console.error("Error fetching team members data:", teamMembersError);
@@ -191,15 +204,12 @@ const Teams = () => {
         return;
       }
 
-      // Try to fetch profiles data to supplement role information
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*');
-
-      console.log('Profiles query result:', { profilesData, profilesError });
-
-      if (profilesError) {
-        console.log("Note: Limited access to profiles data:", profilesError.message);
+      // Create a map for faster profile lookup
+      const profilesMap = new Map();
+      if (profilesData) {
+        profilesData.forEach(profile => {
+          profilesMap.set(profile.id, profile);
+        });
       }
 
       // Use team_members as the base and supplement with profiles data when available
@@ -207,7 +217,7 @@ const Teams = () => {
       
       if (teamMembersData && teamMembersData.length > 0) {
         allUsers = teamMembersData.map(member => {
-          const profileData = profilesData?.find(profile => profile.id === member.id);
+          const profileData = profilesMap.get(member.id);
           return {
             id: member.id,
             name: member.name || member.email || 'Unknown',
@@ -242,9 +252,15 @@ const Teams = () => {
       
       setTeamMembers(allUsers);
       setTotalUsersCount(allUsers.length);
+      setLastFetchTime(Date.now());
 
-      // Initialize attendance for all members if needed
-      await initializeAndLoadAttendanceStats(allUsers);
+      // Only load attendance stats if user is not financial and attendance tab is needed
+      if (userRole !== 'financial') {
+        // Load attendance stats in background without blocking the UI
+        setTimeout(() => {
+          loadAttendanceStats(allUsers);
+        }, 100);
+      }
     } catch (error) {
       console.error("Error fetching team members:", error);
       toast({
@@ -255,7 +271,7 @@ const Teams = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [userRole]);
 
   // 2. Add or Update member - now updates both profiles and team_members
   const handleSaveMember = async () => {
@@ -369,20 +385,12 @@ const Teams = () => {
 
   const initializeAndLoadAttendanceStats = async (members: TeamMember[]) => {
     try {
-      await Promise.all(members.map(member => initializeMemberAttendance(member.id)));
-      const statsPromises = members.map(async (member) => {
-        const stats = await getAttendanceStats(member.id);
-        return { memberId: member.id, stats };
-      });
-      const results = await Promise.all(statsPromises);
-      const statsMap = results.reduce((acc, { memberId, stats }) => {
-        acc[memberId] = stats;
-        return acc;
-      }, {} as Record<string, AttendanceStats>);
-      setAttendanceStats(statsMap);
-      const memberIds = members.map(m => m.id);
-      const teamStats = await getTeamAttendanceStats(memberIds);
-      setTeamAttendanceStats(teamStats);
+      // Only initialize attendance for members that don't have stats yet
+      const membersToInitialize = members.filter(member => !attendanceStats[member.id]);
+      if (membersToInitialize.length > 0) {
+        await Promise.all(membersToInitialize.map(member => initializeMemberAttendance(member.id)));
+      }
+      await loadAttendanceStats(members);
     } catch (error) {
       console.error('Error initializing and loading attendance stats:', error);
     }
@@ -390,16 +398,31 @@ const Teams = () => {
   
   const loadAttendanceStats = async (members: TeamMember[]) => {
     try {
-      const statsPromises = members.map(async (member) => {
+      // Only load stats for members that don't have them cached
+      const membersToLoad = members.filter(member => !attendanceStats[member.id]);
+      
+      if (membersToLoad.length === 0) {
+        // If we have all stats cached, just load team stats
+        const memberIds = members.map(m => m.id);
+        const teamStats = await getTeamAttendanceStats(memberIds);
+        setTeamAttendanceStats(teamStats);
+        return;
+      }
+
+      const statsPromises = membersToLoad.map(async (member) => {
         const stats = await getAttendanceStats(member.id);
         return { memberId: member.id, stats };
       });
+      
       const results = await Promise.all(statsPromises);
-      const statsMap = results.reduce((acc, { memberId, stats }) => {
+      const newStatsMap = results.reduce((acc, { memberId, stats }) => {
         acc[memberId] = stats;
         return acc;
       }, {} as Record<string, AttendanceStats>);
-      setAttendanceStats(statsMap);
+      
+      // Merge with existing stats
+      setAttendanceStats(prev => ({ ...prev, ...newStatsMap }));
+      
       const memberIds = members.map(m => m.id);
       const teamStats = await getTeamAttendanceStats(memberIds);
       setTeamAttendanceStats(teamStats);
@@ -473,24 +496,40 @@ const Teams = () => {
   useEffect(() => {
     fetchTeamMembers();
     
-    // Start the attendance service when the component mounts
+    // Start the attendance service in the background when the component mounts
     if (userRole !== 'financial') {
-      startAttendanceService();
+      // Run attendance service in background without blocking UI
+      setTimeout(() => {
+        startAttendanceService();
+      }, 2000); // Delay by 2 seconds to prioritize UI loading
     }
 
     // Set up real-time subscriptions for team_members and profiles tables
+    // Only subscribe to INSERT and UPDATE events to reduce unnecessary refreshes
     const teamMembersSubscription = supabase
       .channel('team_members_changes')
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'team_members'
         },
         () => {
-          console.log('Team members table changed, refreshing data...');
-          fetchTeamMembers();
+          console.log('New team member added, refreshing data...');
+          fetchTeamMembers(true);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'team_members'
+        },
+        () => {
+          console.log('Team member updated, refreshing data...');
+          fetchTeamMembers(true);
         }
       )
       .subscribe();
@@ -500,40 +539,44 @@ const Teams = () => {
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'UPDATE',
           schema: 'public',
           table: 'profiles'
         },
         () => {
-          console.log('Profiles table changed, refreshing data...');
-          fetchTeamMembers();
+          console.log('Profile updated, refreshing data...');
+          fetchTeamMembers(true);
         }
       )
       .subscribe();
 
-    // Set up periodic refresh as fallback (every 30 seconds)
-    const intervalId = setInterval(() => {
-      console.log('Periodic refresh of team members...');
-      fetchTeamMembers();
-    }, 30000);
-
-    // Cleanup subscriptions and interval on unmount
+    // Cleanup subscriptions on unmount
     return () => {
       teamMembersSubscription.unsubscribe();
       profilesSubscription.unsubscribe();
-      clearInterval(intervalId);
     };
-  }, [userRole, fetchTeamMembers]);
+  }, [userRole]); // Removed fetchTeamMembers from dependencies to prevent infinite loop
 
-  // Filtering logic - simplified since we don't have team field
-  const filteredMembers = teamMembers.filter(member => {
-    const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         member.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         member.role.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesTeam = teamFilter === "all" || member.role === teamFilter; // Use role instead of team
-    return matchesSearch && matchesTeam;
-  });
-  const uniqueRoles = Array.from(new Set(teamMembers.map(member => member.role).filter(Boolean))) as string[];
+  // Optimized filtering logic with memoization
+  const filteredMembers = useMemo(() => {
+    if (!searchTerm && teamFilter === "all") {
+      return teamMembers;
+    }
+    
+    return teamMembers.filter(member => {
+      const matchesSearch = !searchTerm || 
+        member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        member.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        member.role.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesTeam = teamFilter === "all" || member.role === teamFilter;
+      return matchesSearch && matchesTeam;
+    });
+  }, [teamMembers, searchTerm, teamFilter]);
+
+  const uniqueRoles = useMemo(() => 
+    Array.from(new Set(teamMembers.map(member => member.role).filter(Boolean))) as string[],
+    [teamMembers]
+  );
 
   if (loading) {
     return (
@@ -542,8 +585,29 @@ const Teams = () => {
           title="Teams"
           subtitle="Manage team members and collaborators"
         >
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+          <div className="space-y-6">
+            {/* Search and Filter Bar Skeleton */}
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1">
+                <div className="h-10 bg-gray-200 rounded-md animate-pulse"></div>
+              </div>
+              <div className="w-full sm:w-48">
+                <div className="h-10 bg-gray-200 rounded-md animate-pulse"></div>
+              </div>
+              <div className="w-24">
+                <div className="h-10 bg-gray-200 rounded-md animate-pulse"></div>
+              </div>
+            </div>
+
+            {/* Team Members Table Skeleton */}
+            <div className="space-y-4">
+              <div className="h-6 bg-gray-200 rounded w-48 animate-pulse"></div>
+              <div className="space-y-3">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="h-16 bg-gray-100 rounded-md animate-pulse"></div>
+                ))}
+              </div>
+            </div>
           </div>
         </PageContainer>
       </MainLayout>
@@ -586,7 +650,7 @@ const Teams = () => {
               </Select>
               <Button
                 variant="outline"
-                onClick={fetchTeamMembers}
+                onClick={() => fetchTeamMembers(true)}
                 className="flex items-center gap-2"
                 disabled={loading}
               >

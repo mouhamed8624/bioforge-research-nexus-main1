@@ -268,7 +268,7 @@ function AppContent() {
         } />
         
         <Route path="/teams" element={
-          <ProtectedPageRoute allowedRoles={['president', 'admin', 'general_director', 'manager', 'front_desk']}>
+          <ProtectedPageRoute allowedRoles={['president', 'admin', 'general_director', 'manager', 'front_desk', 'financial']}>
             <Teams />
           </ProtectedPageRoute>
         } />
