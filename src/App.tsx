@@ -202,7 +202,7 @@ function AppContent() {
         
         {/* Lazy-loaded Protected Routes - Super Fast Loading */}
         <Route path="/todo-list" element={
-          <ProtectedPageRoute allowedRoles={['president', 'admin', 'lab', 'general_director', 'manager', 'front_desk', 'financial']}>
+          <ProtectedPageRoute allowedRoles={['president', 'admin', 'lab', 'general_director', 'manager', 'front_desk']}>
             <TodoList />
           </ProtectedPageRoute>
         } />

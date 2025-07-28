@@ -227,7 +227,8 @@ export function CreateTodoDialog({ onTodoCreated }: CreateTodoDialogProps) {
   };
 
   const getRemainingProgress = () => {
-    return Math.max(0, 100 - projectProgress - getTotalPercentage());
+    const total = projectProgress + getTotalPercentage();
+    return Math.max(0, 100 - total);
   };
 
   const handleSubmit = async () => {
@@ -286,12 +287,12 @@ export function CreateTodoDialog({ onTodoCreated }: CreateTodoDialogProps) {
     }
 
     const totalPercentage = getTotalPercentage();
-    const remainingProgress = 100 - projectProgress;
+    const totalProgress = projectProgress + totalPercentage;
     
-    if (totalPercentage > remainingProgress) {
+    if (totalProgress > 100) {
       toast({
         title: "Error",
-        description: `Total task percentage (${totalPercentage}%) exceeds remaining project progress (${remainingProgress}%). Current project progress: ${projectProgress}%`,
+        description: `Total progress would exceed 100%. Current project progress: ${projectProgress}%, new tasks: ${totalPercentage}%, total: ${totalProgress}%`,
         variant: "destructive",
       });
       return;
@@ -402,7 +403,11 @@ export function CreateTodoDialog({ onTodoCreated }: CreateTodoDialogProps) {
                           min="0"
                           max={Math.max(0, 100 - projectProgress - tasks.reduce((sum, t, i) => i !== index ? sum + t.percentage : sum, 0))}
                           value={task.percentage}
-                          onChange={(e) => updateTask(index, 'percentage', e.target.value)}
+                          onChange={(e) => {
+                            const value = parseInt(e.target.value) || 0;
+                            const maxAllowed = Math.max(0, 100 - projectProgress - tasks.reduce((sum, t, i) => i !== index ? sum + t.percentage : sum, 0));
+                            updateTask(index, 'percentage', Math.min(value, maxAllowed));
+                          }}
                           placeholder="0"
                           className="w-full"
                         />

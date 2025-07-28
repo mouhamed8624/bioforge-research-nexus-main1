@@ -100,7 +100,7 @@ const TodoListPage = () => {
             description: "Failed to refresh todos from database.",
             variant: "destructive",
           });
-        }
+      }
       } finally {
         setLoading(false);
       }
@@ -118,7 +118,7 @@ const TodoListPage = () => {
         .then(({ data, error }) => {
           if (!error && data) setAllUsers(data);
         });
-    }
+      }
   }, [userProfile?.role]);
 
 
@@ -433,66 +433,66 @@ const TodoListPage = () => {
       isLate = new Date(todo.completed_at) > new Date(todo.deadline);
     }
     return (
-      <div className="bg-gradient-to-r from-green-50/50 to-white border border-green-100 rounded-xl p-4">
-        <div className="flex items-start justify-between gap-4 min-w-0">
-          <div className="flex items-start gap-3 flex-1 min-w-0">
-            <div className="mt-1 flex-shrink-0">
-              <CheckCircle2 className="h-5 w-5 text-green-600" />
-            </div>
-            <div className="flex-1 space-y-2 min-w-0">
-              <h3 className="font-medium text-gray-700 line-through break-words">
-                {todo.task}
-              </h3>
-              <div className="flex items-center gap-3 text-sm flex-wrap">
-                {todo.project_id && (
-                  <div className="flex items-center gap-1 text-gray-500 flex-shrink-0">
-                    <FolderOpen className="h-4 w-4" />
-                    <span className="truncate">{getProjectName(todo.project_id)}</span>
-                  </div>
-                )}
+    <div className="bg-gradient-to-r from-green-50/50 to-white border border-green-100 rounded-xl p-4">
+      <div className="flex items-start justify-between gap-4 min-w-0">
+        <div className="flex items-start gap-3 flex-1 min-w-0">
+          <div className="mt-1 flex-shrink-0">
+            <CheckCircle2 className="h-5 w-5 text-green-600" />
+          </div>
+          <div className="flex-1 space-y-2 min-w-0">
+            <h3 className="font-medium text-gray-700 line-through break-words">
+              {todo.task}
+            </h3>
+            <div className="flex items-center gap-3 text-sm flex-wrap">
+              {todo.project_id && (
                 <div className="flex items-center gap-1 text-gray-500 flex-shrink-0">
-                  <Percent className="h-4 w-4" />
-                  <span>{todo.percentage}%</span>
+                  <FolderOpen className="h-4 w-4" />
+                  <span className="truncate">{getProjectName(todo.project_id)}</span>
                 </div>
-                {todo.assigned_to.length > 0 && (
-                  <div className="flex items-center gap-1 text-gray-500 bg-gray-100 px-2 py-1 rounded-full flex-shrink-0">
-                    <User className="h-4 w-4" />
-                    <span className="truncate max-w-32">{todo.assigned_to.join(', ')}</span>
-                  </div>
-                )}
+              )}
+              <div className="flex items-center gap-1 text-gray-500 flex-shrink-0">
+                <Percent className="h-4 w-4" />
+                <span>{todo.percentage}%</span>
+              </div>
+              {todo.assigned_to.length > 0 && (
+                <div className="flex items-center gap-1 text-gray-500 bg-gray-100 px-2 py-1 rounded-full flex-shrink-0">
+                  <User className="h-4 w-4" />
+                  <span className="truncate max-w-32">{todo.assigned_to.join(', ')}</span>
+                </div>
+              )}
                 {todo.deadline && (
                   <div className="flex items-center gap-1 text-orange-600 bg-orange-50 px-2 py-1 rounded-full flex-shrink-0">
                     <Clock className="h-4 w-4" />
                     <span className="font-medium truncate max-w-40">Deadline: {format(new Date(todo.deadline), 'MMM d, yyyy HH:mm')}</span>
                   </div>
                 )}
-                {todo.completed_by && (
-                  <div className="flex items-center gap-1 text-blue-600 bg-blue-50 px-2 py-1 rounded-full flex-shrink-0">
-                    <UserCheck className="h-4 w-4" />
-                    <span className="font-medium truncate max-w-40">Completed by: {todo.completed_by}</span>
-                  </div>
-                )}
-                {todo.completed_at && (
-                  <div className="text-gray-500 text-xs flex-shrink-0">
+              {todo.completed_by && (
+                <div className="flex items-center gap-1 text-blue-600 bg-blue-50 px-2 py-1 rounded-full flex-shrink-0">
+                  <UserCheck className="h-4 w-4" />
+                  <span className="font-medium truncate max-w-40">Completed by: {todo.completed_by}</span>
+                </div>
+              )}
+              {todo.completed_at && (
+                <div className="text-gray-500 text-xs flex-shrink-0">
                     Completed: {format(new Date(todo.completed_at), 'MMM d, yyyy HH:mm')}
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
+        </div>
           <div className="flex flex-col gap-2 items-end">
-            <Badge className="bg-green-100 text-green-800 border-green-200 flex-shrink-0">
-              Completed
-            </Badge>
+        <Badge className="bg-green-100 text-green-800 border-green-200 flex-shrink-0">
+          Completed
+        </Badge>
             {isLate && (
               <Badge className="bg-red-100 text-red-800 border-red-200 flex-shrink-0 mt-1">
                 Late
               </Badge>
             )}
           </div>
-        </div>
       </div>
-    );
+    </div>
+  );
   };
 
   return (
@@ -600,14 +600,14 @@ const TodoListPage = () => {
               <CardContent className="p-6">
                 {completedTodos.length > 0 ? (
                   <>
-                    <div className="space-y-4">
+                  <div className="space-y-4">
                       {paginatedCompletedTodos.map((todo) => (
-                        <CompletedTaskCard
-                          key={todo.id}
-                          todo={todo}
-                        />
-                      ))}
-                    </div>
+                      <CompletedTaskCard
+                        key={todo.id}
+                        todo={todo}
+                      />
+                    ))}
+                  </div>
                     {totalCompletedPages > 1 && (
                       <div className="flex justify-center items-center gap-2 mt-6">
                         <Button

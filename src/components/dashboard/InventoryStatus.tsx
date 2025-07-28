@@ -33,7 +33,7 @@ const getStockPercentage = (quantite_restante: number, seuil_alerte: number) => 
 
 export function InventoryStatus() {
   const { userProfile } = useAuth();
-  
+
   // Use react-query to fetch inventory items from Supabase
   const { data: inventoryItems = [], isLoading, isError } = useQuery({
     queryKey: ["dashboardInventoryItems"],

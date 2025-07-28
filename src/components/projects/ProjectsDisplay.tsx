@@ -853,7 +853,7 @@ export function ProjectsDisplay() {
                             <span className="font-medium">
                               {Math.ceil((new Date().getTime() - new Date(selectedProject.startDate).getTime()) / (1000 * 60 * 60 * 24))} days
                             </span>
-                          </div>
+                            </div>
                           <div className="flex justify-between items-center">
                             <span className="text-sm text-muted-foreground">Team Size</span>
                             <span className="font-medium">{selectedProject.teamMembers} members</span>
@@ -880,7 +880,7 @@ export function ProjectsDisplay() {
                                 <Clock className="h-3 w-3 mr-1" />
                                 Refresh
                               </Button>
-                            </div>
+                              </div>
                             {allTodos.filter(todo => todo.project_id === selectedProject.id && todo.completed).length === 0 ? (
                               <div className="space-y-2">
                                 <div className="text-muted-foreground text-sm">No completed to-dos for this project yet.</div>
@@ -890,8 +890,8 @@ export function ProjectsDisplay() {
                                   <div>• Project ID: {selectedProject.id}</div>
                                   <div>• Todos for this project: {allTodos.filter(todo => todo.project_id === selectedProject.id).length}</div>
                                   <div>• Completed todos: {allTodos.filter(todo => todo.project_id === selectedProject.id && todo.completed).length}</div>
-                                </div>
-                              </div>
+                            </div>
+                          </div>
                             ) : (
                               <div className="overflow-x-auto">
                                 <table className="min-w-full border text-sm rounded-xl overflow-hidden">
@@ -918,7 +918,7 @@ export function ProjectsDisplay() {
                                             <td className="px-4 py-2 border text-center">
                                               <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${isLate ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
                                                 {isLate ? 'Late' : 'On Time'}
-                                              </span>
+                                </span>
                                             </td>
                                           </tr>
                                         );
@@ -926,8 +926,8 @@ export function ProjectsDisplay() {
                                   </tbody>
                                 </table>
                               </div>
-                            )}
-                          </div>
+                                  )}
+                                </div>
                           {/* End Progress Breakdown Table */}
                           {selectedProject.budget && (
                             <>
@@ -944,7 +944,7 @@ export function ProjectsDisplay() {
                                 <span className="font-medium text-green-600">
                                   ${(selectedProject.budget.total - selectedProject.budget.used).toLocaleString()}
                                 </span>
-                              </div>
+                            </div>
 
                             </>
                           )}
