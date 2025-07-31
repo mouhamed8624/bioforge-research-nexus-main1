@@ -252,7 +252,8 @@ export class DataPreloader {
         break;
 
       case 'lab':
-        // Lab users need patient and lab data
+      case 'unit_team_leader':
+        // Lab users and unit/team leaders need patient and lab data
         promises.push(
           this.preloadPatients(),
           this.preloadLaboratoryData()

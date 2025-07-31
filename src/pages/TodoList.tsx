@@ -133,12 +133,15 @@ const TodoListPage = () => {
           assigned_to: todo.assigned_to,
           percentage: todo.percentage,
           project_id: todo.project_id,
+          activity_id: todo.activity_id,
           deadline: todo.deadline,
         });
         createdTodos.push(createdTodo);
       }
       
-      setTodos(prevTodos => [...prevTodos, ...createdTodos]);
+      // Refresh todos from database to get the latest data
+      const updatedTodos = await fetchTodos();
+      setTodos(updatedTodos);
       
       // Refresh stats after adding new todos
       await refreshUserStats();

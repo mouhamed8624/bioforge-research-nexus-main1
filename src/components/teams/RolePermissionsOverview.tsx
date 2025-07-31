@@ -82,6 +82,18 @@ const ROLE_NAV_CONFIG: Record<string, string[]> = {
     "patients",
     "todo-list"
   ],
+  unit_team_leader: [
+    "data-visualization",
+    "pending-submissions",
+    "bio-banks",
+    "dashboard",
+    "dbs",
+    "plaquettes",
+    "reservations",
+    "patients",
+    "todo-list",
+    "button-project"
+  ],
   field: [
     "patients",
     "dashboard"
@@ -170,6 +182,13 @@ const ROLE_CONFIG = {
     icon: Microscope,
     color: "bg-green-600",
     badge: "bg-green-100 text-green-800"
+  },
+  unit_team_leader: {
+    title: "Unit/Team Leader",
+    description: "Team leadership and laboratory operations",
+    icon: Users,
+    color: "bg-green-500",
+    badge: "bg-green-100 text-green-700"
   },
   general_director: {
     title: "General Director",

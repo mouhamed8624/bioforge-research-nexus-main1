@@ -22,6 +22,7 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { CreateProjectDialog } from "./CreateProjectDialog";
 import { EditProjectDialog } from "./EditProjectDialog";
+import { MilestonesSection } from "./MilestonesSection";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -89,6 +90,12 @@ export function ProjectsDisplay() {
   const [operationInProgress, setOperationInProgress] = useState<Set<string>>(new Set());
   const { userProfile } = useAuth();
   const [allTodos, setAllTodos] = useState<any[]>([]);
+  const [milestonesRefreshKey, setMilestonesRefreshKey] = useState(0);
+
+  // Check if user can view budget information
+  const canViewBudget = userProfile?.role === 'president' || 
+                       userProfile?.role === 'admin' || 
+                       userProfile?.role === 'financial';
 
   // Fetch projects from Supabase
   const fetchProjects = async () => {
@@ -190,6 +197,9 @@ export function ProjectsDisplay() {
 
       console.log('Successfully fetched todos:', data?.length || 0);
       setAllTodos(data || []);
+      
+      // Refresh milestones when todos are updated
+      setMilestonesRefreshKey(prev => prev + 1);
     } catch (error) {
       console.error('Error fetching todos:', error);
       setAllTodos([]);
@@ -635,7 +645,7 @@ export function ProjectsDisplay() {
                 )}
 
                 {/* Budget Information */}
-                {project.budget && (
+                {project.budget && canViewBudget && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -929,7 +939,7 @@ export function ProjectsDisplay() {
                                   )}
                                 </div>
                           {/* End Progress Breakdown Table */}
-                          {selectedProject.budget && (
+                          {selectedProject.budget && canViewBudget && (
                             <>
                               <div className="flex justify-between items-center">
                                 <span className="text-sm text-muted-foreground">Total Budget</span>
@@ -951,6 +961,14 @@ export function ProjectsDisplay() {
                         </div>
                       </CardContent>
                     </Card>
+                  </div>
+
+                  {/* Milestones Section */}
+                  <div className="space-y-4">
+                    <MilestonesSection 
+                      key={`milestones-${selectedProject.id}-${milestonesRefreshKey}`}
+                      projectId={selectedProject.id} 
+                    />
                   </div>
 
                   {/* Team Management */}
@@ -1120,7 +1138,7 @@ export function ProjectsDisplay() {
                           </Badge>
                         </div>
 
-                        {selectedProject.budget && (
+                        {selectedProject.budget && canViewBudget && (
                           <>
                             <div className="flex justify-between items-center">
                               <span className="text-sm text-muted-foreground">Total Budget</span>

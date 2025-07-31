@@ -35,6 +35,7 @@ type UserRole =
   | 'president' 
   | 'admin' 
   | 'lab' 
+  | 'unit_team_leader'
   | 'general_director' 
   | 'manager' 
   | 'field' 
@@ -97,6 +98,13 @@ const roleConfig = {
     icon: DollarSign,
     color: "bg-blue-400 hover:bg-blue-500",
     badge: "bg-blue-50 text-blue-600"
+  },
+  unit_team_leader: {
+    title: "Unit/Team Leader",
+    description: "Team leadership and laboratory operations",
+    icon: Users,
+    color: "bg-green-500 hover:bg-green-600",
+    badge: "bg-green-50 text-green-700"
   }
 };
 
@@ -173,7 +181,21 @@ export const RoleSelectionDialog = ({ open, userId, onRoleSelected }: RoleSelect
       return;
     }
     setPasswordError(null);
-    if (rolePassword.trim() !== selectedRole) {
+    
+    // Define role passwords
+    const rolePasswords: Record<UserRole, string> = {
+      president: 'president',
+      admin: 'admin',
+      lab: 'lab',
+      unit_team_leader: 'chef',
+      general_director: 'general_director',
+      manager: 'manager',
+      field: 'field',
+      front_desk: 'front_desk',
+      financial: 'financial'
+    };
+    
+    if (rolePassword.trim() !== rolePasswords[selectedRole]) {
       setPasswordError("Incorrect password for this role.");
       return;
     }

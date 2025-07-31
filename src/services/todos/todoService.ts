@@ -8,6 +8,7 @@ export interface CreateTodoData {
   assigned_to: string[];
   percentage: number;
   project_id?: string;
+  activity_id?: string;
   deadline?: string;
 }
 
@@ -51,6 +52,8 @@ export const fetchTodos = async (): Promise<TodoItem[]> => {
 // Create new todo
 export const createTodo = async (todoData: CreateTodoData): Promise<TodoItem> => {
   try {
+    console.log('Creating todo with data:', todoData);
+    
     const { data, error } = await supabase
       .from('todos')
       .insert({
@@ -58,6 +61,7 @@ export const createTodo = async (todoData: CreateTodoData): Promise<TodoItem> =>
         assigned_to: todoData.assigned_to,
         percentage: todoData.percentage,
         project_id: todoData.project_id,
+        activity_id: todoData.activity_id,
         deadline: todoData.deadline,
         created_at: new Date().toISOString(),
       })
@@ -69,6 +73,7 @@ export const createTodo = async (todoData: CreateTodoData): Promise<TodoItem> =>
       throw error;
     }
 
+    console.log('Todo created successfully:', data);
     return data;
   } catch (error) {
     console.error('Error in createTodo:', error);
@@ -106,6 +111,49 @@ export const markTodoAsCompleted = async (
     return data;
   } catch (error) {
     console.error('Error in markTodoAsCompleted:', error);
+    throw error;
+  }
+};
+
+// Toggle todo completion status
+export const toggleTodoCompletion = async (
+  todoId: string, 
+  completed: boolean,
+  completedBy?: string
+): Promise<TodoItem> => {
+  try {
+    console.log('toggleTodoCompletion: Starting with todoId:', todoId, 'completed:', completed);
+    const updateTime = new Date().toISOString();
+    
+    const updateData: any = {
+      completed,
+      updated_at: updateTime,
+    };
+
+    if (completed) {
+      updateData.completed_at = updateTime;
+      updateData.completed_by = completedBy || 'system';
+    } else {
+      updateData.completed_at = null;
+      updateData.completed_by = null;
+    }
+    
+    const { data, error } = await supabase
+      .from('todos')
+      .update(updateData)
+      .eq('id', todoId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error toggling todo completion:', error);
+      throw error;
+    }
+
+    console.log('toggleTodoCompletion: Successfully updated todo:', data);
+    return data;
+  } catch (error) {
+    console.error('Error in toggleTodoCompletion:', error);
     throw error;
   }
 };

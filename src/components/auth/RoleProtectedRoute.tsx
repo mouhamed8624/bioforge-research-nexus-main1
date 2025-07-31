@@ -44,6 +44,18 @@ const ROLE_NAV_CONFIG: Record<string, string[]> = {
     "patients",
     "todo-list"
   ],
+  unit_team_leader: [
+    "data-visualization",
+    "pending-submissions",
+    "bio-banks",
+    "dashboard",
+    "dbs",
+    "plaquettes",
+    "reservations",
+    "patients",
+    "todo-list",
+    "button-project"
+  ],
   field: [
     "patients",
     "dashboard"

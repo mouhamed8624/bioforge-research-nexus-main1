@@ -17,6 +17,7 @@ import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
 import { type TodoItem } from "@/services/todos/todoService";
+import { ActivitySelector } from "./ActivitySelector";
 
 interface Project {
   id: string;
@@ -51,10 +52,18 @@ interface TaskInput {
   deadline?: string; // ISO string
 }
 
+interface Activity {
+  id: string;
+  name: string;
+  milestone_id: string;
+  milestone_name?: string;
+}
+
 export function CreateTodoDialog({ onTodoCreated }: CreateTodoDialogProps) {
   const [open, setOpen] = useState(false);
   const [tasks, setTasks] = useState<TaskInput[]>([{ task: "", percentage: 0, assigned_to: [], deadline: "" }]);
   const [selectedProject, setSelectedProject] = useState<string>("");
+  const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
   const [loading, setLoading] = useState(false);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -306,6 +315,7 @@ export function CreateTodoDialog({ onTodoCreated }: CreateTodoDialogProps) {
       completed: false,
       percentage: task.percentage,
       project_id: selectedProject,
+      activity_id: selectedActivity?.id || undefined,
       assigned_to: task.assigned_to,
       deadline: task.deadline || undefined,
     }));
@@ -316,6 +326,7 @@ export function CreateTodoDialog({ onTodoCreated }: CreateTodoDialogProps) {
     // Reset form and close dialog
     setTasks([{ task: "", percentage: 0, assigned_to: [], deadline: "" }]);
     setSelectedProject("");
+    setSelectedActivity(null);
     setProjectProgress(0);
     setOpen(false);
     setLoading(false);
@@ -367,6 +378,13 @@ export function CreateTodoDialog({ onTodoCreated }: CreateTodoDialogProps) {
               </div>
             )}
           </div>
+
+                    {/* Activity Selection */}
+          <ActivitySelector
+            projectId={selectedProject || null}
+            onActivitySelect={setSelectedActivity}
+            selectedActivity={selectedActivity}
+          />
 
           <div className="space-y-3">
             <div className="flex items-center justify-between">

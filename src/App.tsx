@@ -202,13 +202,13 @@ function AppContent() {
         
         {/* Lazy-loaded Protected Routes - Super Fast Loading */}
         <Route path="/todo-list" element={
-          <ProtectedPageRoute allowedRoles={['president', 'admin', 'lab', 'general_director', 'manager', 'front_desk']}>
+          <ProtectedPageRoute allowedRoles={['president', 'admin', 'lab', 'unit_team_leader', 'general_director', 'manager', 'front_desk']}>
             <TodoList />
           </ProtectedPageRoute>
         } />
         
         <Route path="/patients" element={
-          <ProtectedPageRoute allowedRoles={['president', 'admin', 'lab', 'field']}>
+          <ProtectedPageRoute allowedRoles={['president', 'admin', 'lab', 'unit_team_leader', 'field']}>
             <Patients />
           </ProtectedPageRoute>
         } />
@@ -226,19 +226,19 @@ function AppContent() {
         } />
         
         <Route path="/bio-banks" element={
-          <ProtectedPageRoute allowedRoles={['president', 'admin', 'lab']}>
+          <ProtectedPageRoute allowedRoles={['president', 'admin', 'lab', 'unit_team_leader']}>
             <BioBanks />
           </ProtectedPageRoute>
         } />
         
         <Route path="/dbs" element={
-          <ProtectedPageRoute allowedRoles={['president', 'admin', 'lab']}>
+          <ProtectedPageRoute allowedRoles={['president', 'admin', 'lab', 'unit_team_leader']}>
             <DBS />
           </ProtectedPageRoute>
         } />
         
         <Route path="/plaquettes" element={
-          <ProtectedPageRoute allowedRoles={['president', 'admin', 'lab']}>
+          <ProtectedPageRoute allowedRoles={['president', 'admin', 'lab', 'unit_team_leader']}>
             <Plaquettes />
           </ProtectedPageRoute>
         } />
@@ -256,7 +256,7 @@ function AppContent() {
         } />
         
         <Route path="/reservations" element={
-          <ProtectedPageRoute allowedRoles={['president', 'admin', 'financial', 'lab']}>
+          <ProtectedPageRoute allowedRoles={['president', 'admin', 'financial', 'lab', 'unit_team_leader']}>
             <Reservations />
           </ProtectedPageRoute>
         } />
@@ -280,13 +280,13 @@ function AppContent() {
         } />
         
         <Route path="/data-visualization" element={
-          <ProtectedPageRoute allowedRoles={['president', 'admin', 'lab']}>
+          <ProtectedPageRoute allowedRoles={['president', 'admin', 'lab', 'unit_team_leader']}>
             <DataVisualization />
           </ProtectedPageRoute>
         } />
         
         <Route path="/pending-submissions" element={
-          <ProtectedPageRoute allowedRoles={['president', 'admin', 'lab']}>
+          <ProtectedPageRoute allowedRoles={['president', 'admin', 'lab', 'unit_team_leader']}>
             <PendingSubmissions />
           </ProtectedPageRoute>
         } />
@@ -298,7 +298,7 @@ function AppContent() {
         } />
         
         <Route path="/button-project" element={
-          <ProtectedPageRoute allowedRoles={['president', 'admin', 'general_director', 'manager', 'front_desk', 'financial']}>
+          <ProtectedPageRoute allowedRoles={['president', 'admin', 'general_director', 'manager', 'front_desk', 'financial', 'unit_team_leader']}>
             <ButtonProject />
           </ProtectedPageRoute>
         } />
