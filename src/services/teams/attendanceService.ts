@@ -5,7 +5,7 @@ export interface AttendanceRecord {
   id: string;
   team_member_id: string;
   date: string;
-  status: 'present' | 'absent' | 'late' | 'excused';
+  status: 'present' | 'absent' | 'justified_absent';
   notes?: string | null;
   recorded_by?: string | null;
   created_at: string;
@@ -16,8 +16,7 @@ export interface AttendanceStats {
   totalDays: number;
   presentDays: number;
   absentDays: number;
-  lateDays: number;
-  excusedDays: number;
+  justifiedAbsentDays: number;
   attendanceRate: number;
 }
 
@@ -35,7 +34,7 @@ export const getAttendanceRecords = async (): Promise<AttendanceRecord[]> => {
 
   return (data || []).map(record => ({
     ...record,
-    status: record.status as 'present' | 'absent' | 'late' | 'excused'
+    status: record.status as 'present' | 'absent' | 'justified_absent'
   }));
 };
 
@@ -55,7 +54,7 @@ export const getAttendanceByDateRange = async (startDate: string, endDate: strin
 
   return (data || []).map(record => ({
     ...record,
-    status: record.status as 'present' | 'absent' | 'late' | 'excused'
+    status: record.status as 'present' | 'absent' | 'justified_absent'
   }));
 };
 
@@ -74,7 +73,7 @@ export const getAttendanceByMember = async (memberId: string): Promise<Attendanc
 
   return (data || []).map(record => ({
     ...record,
-    status: record.status as 'present' | 'absent' | 'late' | 'excused'
+    status: record.status as 'present' | 'absent' | 'justified_absent'
   }));
 };
 
@@ -92,7 +91,7 @@ export const getAttendanceByDate = async (date: string): Promise<AttendanceRecor
 
   return (data || []).map(record => ({
     ...record,
-    status: record.status as 'present' | 'absent' | 'late' | 'excused'
+    status: record.status as 'present' | 'absent' | 'justified_absent'
   }));
 };
 
@@ -100,7 +99,7 @@ export const getAttendanceByDate = async (date: string): Promise<AttendanceRecor
 export const markAttendance = async (
   memberId: string,
   date: string,
-  status: 'present' | 'absent' | 'late' | 'excused',
+  status: 'present' | 'absent' | 'justified_absent',
   notes?: string,
   recordedBy?: string
 ): Promise<AttendanceRecord> => {
@@ -180,6 +179,8 @@ export const updateAttendance = async (
   id: string,
   updates: Partial<Pick<AttendanceRecord, 'status' | 'notes'>>
 ): Promise<AttendanceRecord> => {
+  console.log('Updating attendance record:', { id, updates });
+  
   const { data, error } = await supabase
     .from('team_attendance')
     .update({
@@ -192,12 +193,20 @@ export const updateAttendance = async (
 
   if (error) {
     console.error('Error updating attendance:', error);
+    console.error('Error details:', {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code
+    });
     throw error;
   }
 
+  console.log('Successfully updated attendance record:', data);
+
   return {
     ...data,
-    status: data.status as 'present' | 'absent' | 'late' | 'excused'
+    status: data.status as 'present' | 'absent' | 'justified_absent'
   };
 };
 
@@ -241,16 +250,14 @@ export const calculateAttendanceStats = async (memberId: string, startDate?: str
   const totalDays = records.length;
   const presentDays = records.filter(r => r.status === 'present').length;
   const absentDays = records.filter(r => r.status === 'absent').length;
-  const lateDays = records.filter(r => r.status === 'late').length;
-  const excusedDays = records.filter(r => r.status === 'excused').length;
+  const justifiedAbsentDays = records.filter(r => r.status === 'justified_absent').length;
   const attendanceRate = totalDays > 0 ? (presentDays / totalDays) * 100 : 0;
 
   return {
     totalDays,
     presentDays,
     absentDays,
-    lateDays,
-    excusedDays,
+    justifiedAbsentDays,
     attendanceRate
   };
 };
@@ -270,8 +277,7 @@ export const getTeamAttendanceStats = async (memberIds: string[], startDate?: st
         totalDays: 0,
         presentDays: 0,
         absentDays: 0,
-        lateDays: 0,
-        excusedDays: 0,
+        justifiedAbsentDays: 0,
         attendanceRate: 0
       };
     }
@@ -311,8 +317,7 @@ export const getTeamAttendanceStats = async (memberIds: string[], startDate?: st
           totalDays: 0,
           presentDays: 0,
           absentDays: 0,
-          lateDays: 0,
-          excusedDays: 0,
+          justifiedAbsentDays: 0,
           attendanceRate: 0
         };
       } else {
@@ -326,16 +331,14 @@ export const getTeamAttendanceStats = async (memberIds: string[], startDate?: st
     const totalDays = records.length;
     const presentDays = records.filter(r => r.status === 'present').length;
     const absentDays = records.filter(r => r.status === 'absent').length;
-    const lateDays = records.filter(r => r.status === 'late').length;
-    const excusedDays = records.filter(r => r.status === 'excused').length;
+    const justifiedAbsentDays = records.filter(r => r.status === 'justified_absent').length;
     const attendanceRate = totalDays > 0 ? (presentDays / totalDays) * 100 : 0;
 
     return {
       totalDays,
       presentDays,
       absentDays,
-      lateDays,
-      excusedDays,
+      justifiedAbsentDays,
       attendanceRate
     };
   } catch (error: any) {

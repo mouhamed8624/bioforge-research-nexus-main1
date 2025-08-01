@@ -8,8 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Calendar, Download, Users, CheckCircle, XCircle, Clock, Shield, User } from "lucide-react";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, parseISO } from "date-fns";
-import { getAttendanceByDateRange, AttendanceRecord } from "@/services/teams/attendanceService";
+import { getAttendanceByDateRange, AttendanceRecord, updateAttendance } from "@/services/teams/attendanceService";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface AttendanceReportDialogProps {
   isOpen: boolean;
@@ -25,8 +26,7 @@ interface MemberStats {
   totalDays: number;
   presentDays: number;
   absentDays: number;
-  lateDays: number;
-  excusedDays: number;
+  justifiedAbsentDays: number;
   attendanceRate: number;
 }
 
@@ -36,6 +36,12 @@ export const AttendanceReportDialog = ({ isOpen, onOpenChange, teamMembers }: At
   const [memberStats, setMemberStats] = useState<MemberStats[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const { userProfile } = useAuth();
+
+  // Check if user can justify absences
+  const canJustifyAbsences = userProfile?.role === 'president' || 
+                            userProfile?.role === 'admin' || 
+                            userProfile?.role === 'manager';
 
   useEffect(() => {
     if (isOpen) {
@@ -103,9 +109,8 @@ export const AttendanceReportDialog = ({ isOpen, onOpenChange, teamMembers }: At
       const totalDays = memberRecords.length;
       const presentDays = memberRecords.filter(r => r.status === 'present').length;
       const absentDays = memberRecords.filter(r => r.status === 'absent').length;
-      const lateDays = memberRecords.filter(r => r.status === 'late').length;
-      const excusedDays = memberRecords.filter(r => r.status === 'excused').length;
-      const attendanceRate = totalDays > 0 ? ((presentDays + lateDays) / totalDays * 100) : 0;
+      const justifiedAbsentDays = memberRecords.filter(r => r.status === 'justified_absent').length;
+      const attendanceRate = totalDays > 0 ? (presentDays / totalDays * 100) : 0;
 
       return {
         memberId: member.id,
@@ -113,8 +118,7 @@ export const AttendanceReportDialog = ({ isOpen, onOpenChange, teamMembers }: At
         totalDays,
         presentDays,
         absentDays,
-        lateDays,
-        excusedDays,
+        justifiedAbsentDays,
         attendanceRate: parseFloat(attendanceRate.toFixed(1))
       };
     });
@@ -126,8 +130,7 @@ export const AttendanceReportDialog = ({ isOpen, onOpenChange, teamMembers }: At
     switch (status) {
       case 'present': return 'bg-green-500';
       case 'absent': return 'bg-red-500';
-      case 'late': return 'bg-yellow-500';
-      case 'excused': return 'bg-blue-500';
+      case 'justified_absent': return 'bg-orange-500';
       default: return 'bg-gray-500';
     }
   };
@@ -136,8 +139,7 @@ export const AttendanceReportDialog = ({ isOpen, onOpenChange, teamMembers }: At
     switch (status) {
       case 'present': return <CheckCircle className="h-4 w-4" />;
       case 'absent': return <XCircle className="h-4 w-4" />;
-      case 'late': return <Clock className="h-4 w-4" />;
-      case 'excused': return <Shield className="h-4 w-4" />;
+      case 'justified_absent': return <Shield className="h-4 w-4" />;
       default: return <Users className="h-4 w-4" />;
     }
   };
@@ -151,16 +153,14 @@ export const AttendanceReportDialog = ({ isOpen, onOpenChange, teamMembers }: At
     const totalRecords = attendanceData.length;
     const presentCount = attendanceData.filter(r => r.status === 'present').length;
     const absentCount = attendanceData.filter(r => r.status === 'absent').length;
-    const lateCount = attendanceData.filter(r => r.status === 'late').length;
-    const excusedCount = attendanceData.filter(r => r.status === 'excused').length;
+    const justifiedAbsentCount = attendanceData.filter(r => r.status === 'justified_absent').length;
     
     return {
       total: totalRecords,
       present: presentCount,
       absent: absentCount,
-      late: lateCount,
-      excused: excusedCount,
-      attendanceRate: totalRecords > 0 ? ((presentCount + lateCount) / totalRecords * 100).toFixed(1) : '0'
+      justifiedAbsent: justifiedAbsentCount,
+      attendanceRate: totalRecords > 0 ? (presentCount / totalRecords * 100).toFixed(1) : '0'
     };
   };
 
@@ -196,9 +196,49 @@ export const AttendanceReportDialog = ({ isOpen, onOpenChange, teamMembers }: At
     });
   };
 
+  const handleJustifyAbsence = async (recordId: string, currentStatus: string) => {
+    console.log('handleJustifyAbsence called with:', { recordId, currentStatus });
+    
+    if (currentStatus !== 'absent') {
+      toast({
+        title: "Invalid Action",
+        description: "Only absent records can be justified",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      console.log('Calling updateAttendance with:', { recordId, status: 'justified_absent' });
+      await updateAttendance(recordId, { status: 'justified_absent' });
+      
+      console.log('Successfully updated attendance, refreshing data...');
+      // Refresh the attendance data
+      await fetchAttendanceData();
+      
+      toast({
+        title: "Success",
+        description: "Absence has been justified successfully",
+      });
+    } catch (error) {
+      console.error('Error justifying absence:', error);
+      console.error('Error details:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
+      toast({
+        title: "Error",
+        description: `Failed to justify absence: ${error.message}`,
+        variant: "destructive"
+      });
+    }
+  };
+
   const StatsSkeleton = () => (
-    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-      {[...Array(5)].map((_, i) => (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {[...Array(4)].map((_, i) => (
         <Card key={i}>
           <CardHeader className="pb-2">
             <Skeleton className="h-4 w-20" />
@@ -264,7 +304,7 @@ export const AttendanceReportDialog = ({ isOpen, onOpenChange, teamMembers }: At
           {loading ? (
             <StatsSkeleton />
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm">Total Records</CardTitle>
@@ -291,18 +331,10 @@ export const AttendanceReportDialog = ({ isOpen, onOpenChange, teamMembers }: At
               </Card>
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm text-yellow-600">Late</CardTitle>
+                  <CardTitle className="text-sm text-orange-600">Justified Absent</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-yellow-600">{stats.late}</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">Attendance Rate</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-blue-600">{stats.attendanceRate}%</div>
+                  <div className="text-2xl font-bold text-orange-600">{stats.justifiedAbsent}</div>
                 </CardContent>
               </Card>
             </div>
@@ -336,8 +368,7 @@ export const AttendanceReportDialog = ({ isOpen, onOpenChange, teamMembers }: At
                         <TableHead className="text-center">Total Days</TableHead>
                         <TableHead className="text-center text-green-600">Present</TableHead>
                         <TableHead className="text-center text-red-600">Absent</TableHead>
-                        <TableHead className="text-center text-yellow-600">Late</TableHead>
-                        <TableHead className="text-center text-blue-600">Excused</TableHead>
+                        <TableHead className="text-center text-orange-600">Justified Absent</TableHead>
                         <TableHead className="text-center">Attendance Rate</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -348,8 +379,7 @@ export const AttendanceReportDialog = ({ isOpen, onOpenChange, teamMembers }: At
                           <TableCell className="text-center">{member.totalDays}</TableCell>
                           <TableCell className="text-center text-green-600 font-semibold">{member.presentDays}</TableCell>
                           <TableCell className="text-center text-red-600 font-semibold">{member.absentDays}</TableCell>
-                          <TableCell className="text-center text-yellow-600 font-semibold">{member.lateDays}</TableCell>
-                          <TableCell className="text-center text-blue-600 font-semibold">{member.excusedDays}</TableCell>
+                          <TableCell className="text-center text-orange-600 font-semibold">{member.justifiedAbsentDays}</TableCell>
                           <TableCell className="text-center">
                             <Badge variant={member.attendanceRate >= 80 ? "default" : "destructive"}>
                               {member.attendanceRate}%
@@ -394,6 +424,7 @@ export const AttendanceReportDialog = ({ isOpen, onOpenChange, teamMembers }: At
                       <TableHead>Status</TableHead>
                       <TableHead>Notes</TableHead>
                       <TableHead>Recorded By</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -415,6 +446,19 @@ export const AttendanceReportDialog = ({ isOpen, onOpenChange, teamMembers }: At
                           {record.notes || '-'}
                         </TableCell>
                         <TableCell>{record.recorded_by || 'System'}</TableCell>
+                        <TableCell>
+                          {record.status === 'absent' && canJustifyAbsences && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleJustifyAbsence(record.id, record.status)}
+                              className="text-orange-600 border-orange-200 hover:bg-orange-50"
+                            >
+                              <Shield className="h-3 w-3 mr-1" />
+                              Justify
+                            </Button>
+                          )}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
