@@ -3,6 +3,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { NotificationProvider } from "@/contexts/NotificationContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { RoleProtectedRoute } from "@/components/auth/RoleProtectedRoute";
 import { RoleSelectionDialog } from "@/components/auth/RoleSelectionDialog";
@@ -328,9 +329,11 @@ function App() {
       <ThemeProvider>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-            <ErrorBoundary>
-              <AppContent />
-            </ErrorBoundary>
+            <NotificationProvider>
+              <ErrorBoundary>
+                <AppContent />
+              </ErrorBoundary>
+            </NotificationProvider>
           </AuthProvider>
         </QueryClientProvider>
       </ThemeProvider>

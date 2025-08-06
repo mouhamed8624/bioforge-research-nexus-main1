@@ -1,7 +1,20 @@
 import { supabase } from "@/integrations/supabase/client";
-import { Tables } from "@/integrations/supabase/types";
+import { simpleEmailService } from "@/services/email/simpleEmailService";
 
-export type TodoItem = Tables<"todos">;
+export interface TodoItem {
+  id: string;
+  task: string;
+  completed: boolean;
+  assigned_to: string[];
+  completed_at?: string;
+  completed_by?: string;
+  created_at: string;
+  percentage: number;
+  project_id?: string;
+  activity_id?: string;
+  deadline?: string;
+  updated_at: string;
+}
 
 export interface CreateTodoData {
   task: string;
@@ -50,7 +63,7 @@ export const fetchTodos = async (): Promise<TodoItem[]> => {
 };
 
 // Create new todo
-export const createTodo = async (todoData: CreateTodoData): Promise<TodoItem> => {
+export const createTodo = async (todoData: CreateTodoData, assignedBy?: string): Promise<TodoItem> => {
   try {
     console.log('Creating todo with data:', todoData);
     
@@ -74,6 +87,53 @@ export const createTodo = async (todoData: CreateTodoData): Promise<TodoItem> =>
     }
 
     console.log('Todo created successfully:', data);
+
+    // Send email notifications to assigned users
+    if (data && todoData.assigned_to.length > 0) {
+      try {
+        // Get project name if project_id is provided
+        let projectName: string | undefined;
+        if (todoData.project_id) {
+          const { data: project } = await supabase
+            .from('projects')
+            .select('name')
+            .eq('id', todoData.project_id)
+            .single();
+          projectName = project?.name;
+        }
+
+        const notificationData = {
+          todoId: data.id,
+          assignedTo: todoData.assigned_to,
+          taskTitle: todoData.task,
+          taskDescription: todoData.task, // Using task as description for now
+          projectName,
+          deadline: todoData.deadline,
+          assignedBy: assignedBy || 'System',
+        };
+
+        // Send notifications to all assigned users
+        for (const assignedEmail of todoData.assigned_to) {
+          simpleEmailService.sendTodoNotification({
+            recipientEmail: assignedEmail,
+            recipientName: assignedEmail.split('@')[0],
+            taskTitle: todoData.task,
+            taskDescription: todoData.task,
+            projectName,
+            deadline: todoData.deadline,
+            assignedBy: assignedBy || 'System',
+          }).then(result => {
+            console.log(`Email notification result for ${assignedEmail}:`, result);
+          }).catch(error => {
+            console.error(`Error sending email notification to ${assignedEmail}:`, error);
+          });
+        }
+      } catch (notificationError) {
+        console.error('Error preparing email notifications:', notificationError);
+        // Don't fail the todo creation if email notification fails
+      }
+    }
+
     return data;
   } catch (error) {
     console.error('Error in createTodo:', error);
@@ -366,5 +426,84 @@ export const fixCompletedTodos = async (): Promise<void> => {
   } catch (error) {
     console.error('Error in fixCompletedTodos:', error);
     throw error;
+  }
+}; 
+
+// Get unread todos count for a specific user
+export const getUnreadTodosCount = async (userEmail: string): Promise<number> => {
+  try {
+    console.log('getUnreadTodosCount: Starting for user:', userEmail);
+    
+    // Get the user's last visit time from localStorage
+    const lastVisitKey = `todo_last_visit_${userEmail}`;
+    const lastVisit = localStorage.getItem(lastVisitKey);
+    
+    let query = supabase
+      .from('todos')
+      .select('id, created_at')
+      .eq('completed', false)
+      .contains('assigned_to', [userEmail]);
+    
+    // If user has a last visit time, only show todos created after that
+    if (lastVisit) {
+      query = query.gt('created_at', lastVisit);
+    } else {
+      // If no last visit, show todos from the last 7 days
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      query = query.gte('created_at', sevenDaysAgo);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error fetching unread todos count:', error);
+      throw error;
+    }
+
+    console.log('getUnreadTodosCount: Found unread todos:', data?.length || 0);
+    return data?.length || 0;
+  } catch (error) {
+    console.error('Error in getUnreadTodosCount:', error);
+    return 0;
+  }
+};
+
+// Mark todos as read for a user
+export const markTodosAsRead = async (userEmail: string): Promise<void> => {
+  try {
+    console.log('markTodosAsRead: Marking todos as read for user:', userEmail);
+    
+    // Store the current time as the last visit time
+    const lastVisitKey = `todo_last_visit_${userEmail}`;
+    localStorage.setItem(lastVisitKey, new Date().toISOString());
+    
+    console.log('markTodosAsRead: Updated last visit time for user:', userEmail);
+  } catch (error) {
+    console.error('Error in markTodosAsRead:', error);
+  }
+};
+
+// Get total incomplete todos count for a specific user
+export const getIncompleteTodosCount = async (userEmail: string): Promise<number> => {
+  try {
+    console.log('getIncompleteTodosCount: Starting for user:', userEmail);
+    
+    const { data, error } = await supabase
+      .from('todos')
+      .select('id')
+      .eq('completed', false)
+      .contains('assigned_to', [userEmail]);
+
+    if (error) {
+      console.error('Error fetching incomplete todos count:', error);
+      throw error;
+    }
+
+    const count = data?.length || 0;
+    console.log('getIncompleteTodosCount: Found incomplete todos:', count);
+    return count;
+  } catch (error) {
+    console.error('Error in getIncompleteTodosCount:', error);
+    return 0;
   }
 }; 

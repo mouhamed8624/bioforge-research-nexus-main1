@@ -12,6 +12,7 @@ import { CreateTodoDialog } from "@/components/todo/CreateTodoDialog";
 import { Clock, CheckCircle2, Circle, User, FolderOpen, Percent, UserCheck, Users as UsersIcon, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNotifications } from "@/contexts/NotificationContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { 
   fetchTodos, 
@@ -49,6 +50,7 @@ const TodoListPage = () => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const { userProfile } = useAuth();
+  const { markAsRead, refreshIncompleteCount } = useNotifications();
   const [showReport, setShowReport] = useState(false);
   const [showGlobalReport, setShowGlobalReport] = useState(false);
   const [allUsers, setAllUsers] = useState<{ id: string; email: string | null }[]>([]);
@@ -72,6 +74,14 @@ const TodoListPage = () => {
       console.error("Error fetching projects:", error);
     }
   };
+
+  // Mark todos as read when user visits the page
+  useEffect(() => {
+    const handleMarkAsRead = async () => {
+      await markAsRead();
+    };
+    handleMarkAsRead();
+  }, [markAsRead]);
 
   // Initialize with todos from database - optimized loading
   useEffect(() => {
@@ -126,6 +136,7 @@ const TodoListPage = () => {
   const addTodos = async (newTodos: Omit<TodoItem, 'id' | 'created_at' | 'updated_at'>[]) => {
     try {
       const createdTodos: TodoItem[] = [];
+      const assignedBy = userProfile?.email || 'Unknown User';
       
       for (const todo of newTodos) {
         const createdTodo = await createTodo({
@@ -135,7 +146,7 @@ const TodoListPage = () => {
           project_id: todo.project_id,
           activity_id: todo.activity_id,
           deadline: todo.deadline,
-        });
+        }, assignedBy);
         createdTodos.push(createdTodo);
       }
       
@@ -146,6 +157,7 @@ const TodoListPage = () => {
       // Refresh stats after adding new todos
       await refreshUserStats();
       await refreshGlobalStats();
+      await refreshIncompleteCount();
       
       toast({
         title: "Success",
@@ -268,6 +280,7 @@ const TodoListPage = () => {
       // Refresh stats after completion
       await refreshUserStats();
       await refreshGlobalStats();
+      await refreshIncompleteCount();
 
       toast({
         title: "Success",

@@ -1,8 +1,30 @@
 import { supabase } from '@/integrations/supabase/client';
-import { Database } from '@/integrations/supabase/types';
 
-export type ProgressBreakdown = Database['public']['Tables']['progress_breakdown']['Row'];
-export type CreateProgressBreakdownData = Omit<Database['public']['Tables']['progress_breakdown']['Insert'], 'id' | 'created_at' | 'updated_at'>;
+// Define types directly since the generated types are not available
+export interface ProgressBreakdown {
+  id: string;
+  project_id: string;
+  todo_id: string | null;
+  user_email: string;
+  progress_added: number;
+  previous_progress: number;
+  new_progress: number;
+  reason: string;
+  details: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateProgressBreakdownData {
+  project_id: string;
+  todo_id: string | null;
+  user_email: string;
+  progress_added: number;
+  previous_progress: number;
+  new_progress: number;
+  reason: string;
+  details: string | null;
+}
 
 export interface ProgressBreakdownWithTodo extends ProgressBreakdown {
   todo?: {

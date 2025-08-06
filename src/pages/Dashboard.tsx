@@ -19,6 +19,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchInventoryItems } from "@/services/inventory/supabaseService";
+
 import { 
   Users, 
   ClipboardList, 
@@ -468,6 +469,7 @@ const Dashboard = () => {
             <div className="space-y-6">
               {!isLabUser && <InventoryStatus />}
               <AttendanceSummary />
+
             </div>
           </div>
         </div>
